@@ -1,0 +1,10 @@
+{
+  "name": "@thub/shared",
+  "version": "1.0.0",
+  "description": "Shared job-spec schema, state enums and a thin API client used by the Agent and Client",
+  "main": "src/index.js",
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  }
+}
