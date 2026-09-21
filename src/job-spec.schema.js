@@ -46,6 +46,10 @@ const jobSpecSchema = {
     priority: { type: 'integer', minimum: 0, maximum: 100, default: 50 },
     source: { enum: ['ci', 'cli'] },
     meta: { type: 'object' },
+    // Exercises the full pipeline (schedule, accept, state transitions,
+    // logs, artifact, result) without flashing/running anything for real —
+    // see README §7.1 "Dry-run the pipeline".
+    dryRun: { type: 'boolean', default: false },
   },
 };
 
