@@ -1,0 +1,52 @@
+'use strict';
+
+// Matches the job spec shape documented in README.md §4.3.
+// Deliberately has no field for shell commands: the Client only ever
+// runs the fixed entry point from the downloaded test package.
+const jobSpecSchema = {
+  $id: 'https://thub.example.com/schemas/job-spec.json',
+  type: 'object',
+  additionalProperties: false,
+  required: ['target', 'firmware', 'tests'],
+  properties: {
+    target: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['type'],
+      properties: {
+        type: { enum: ['hw', 'sw'] },
+        labels: {
+          type: 'array',
+          items: { type: 'string', minLength: 1 },
+          default: [],
+        },
+      },
+    },
+    firmware: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['url'],
+      properties: {
+        url: { type: 'string', format: 'uri' },
+        sha256: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+        flashAddress: { type: 'string' },
+      },
+    },
+    tests: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['url'],
+      properties: {
+        url: { type: 'string', format: 'uri' },
+        suite: { type: 'string', default: 'default' },
+        args: { type: 'array', items: { type: 'string' }, default: [] },
+      },
+    },
+    timeoutSec: { type: 'integer', minimum: 1, default: 1800 },
+    priority: { type: 'integer', minimum: 0, maximum: 100, default: 50 },
+    source: { enum: ['ci', 'cli'] },
+    meta: { type: 'object' },
+  },
+};
+
+module.exports = { jobSpecSchema };
