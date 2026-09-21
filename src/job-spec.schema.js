@@ -20,6 +20,11 @@ const jobSpecSchema = {
           items: { type: 'string', minLength: 1 },
           default: [],
         },
+        // Constrains scheduling to resources that are members of this
+        // group (§13.1, `thub run --group <id>`) — a third targeting
+        // dimension alongside type/labels. Omitted: any matching resource
+        // in any (or no) group is eligible, same as before groups existed.
+        group: { type: 'string', minLength: 1 },
       },
     },
     firmware: {
