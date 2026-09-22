@@ -13,9 +13,9 @@
 
 'use strict';
 
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const { exitCodeForJobState, EXIT_CODES, JOB_STATES } = require('../src/states');
+const test = require('node:test'),
+  assert = require('node:assert/strict'),
+  { exitCodeForJobState, EXIT_CODES, JOB_STATES } = require('../src/states');
 
 test('exit codes match README §7', () => {
   assert.equal(exitCodeForJobState(JOB_STATES.PASSED), EXIT_CODES.PASSED);
