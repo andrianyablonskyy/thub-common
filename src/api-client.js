@@ -19,47 +19,53 @@
  * both speak the exact same protocol (README.md §1: "This keeps CI
  * and manual usage identical").
  */
-class ApiClient {
-  constructor({ baseUrl, token }) {
-    if (!baseUrl) throw new Error('ApiClient requires baseUrl');
+class ApiClient{
+  constructor({ baseUrl, token }){
+    if (!baseUrl){
+      throw new Error('ApiClient requires baseUrl');
+    }
     this.baseUrl = baseUrl.replace(/\/+$/, '');
     this.token = token;
   }
 
-  _url(path) {
+  _url(path){
     return `${this.baseUrl}/api/v1${path}`;
   }
 
-  _headers(extra = {}) {
+  _headers(extra = {}){
     const headers = { ...extra };
-    if (this.token) headers.Authorization = `Bearer ${this.token}`;
+    if (this.token){
+      headers.Authorization = `Bearer ${this.token}`;
+    }
     return headers;
   }
 
-  async request(method, path, { body, headers, query, signal } = {}) {
+  async request(method, path, { body, headers, query, signal } = {}){
     let url = this._url(path);
-    if (query) {
+    if (query){
       const qs = new URLSearchParams(
         Object.entries(query).filter(([, v]) => v !== undefined && v !== null)
       ).toString();
-      if (qs) url += `?${qs}`;
+      if (qs){
+        url += `?${qs}`;
+      }
     }
 
-    const isJsonBody = body !== undefined && !(body instanceof FormData);
-    const res = await fetch(url, {
-      method,
-      signal,
-      headers: this._headers({
-        ...(isJsonBody ? { 'Content-Type': 'application/json' } : {}),
-        ...headers,
+    const isJsonBody = body !== undefined && !(body instanceof FormData),
+      res = await fetch(url, {
+        method,
+        signal,
+        headers: this._headers({
+          ...(isJsonBody ? { 'Content-Type': 'application/json' } : {}),
+          ...headers
+        }),
+        body: isJsonBody ? JSON.stringify(body) : body
       }),
-      body: isJsonBody ? JSON.stringify(body) : body,
-    });
 
-    const text = await res.text();
-    const data = text ? safeJson(text) : undefined;
+      text = await res.text(),
+      data = text ? safeJson(text) : undefined;
 
-    if (!res.ok) {
+    if (!res.ok){
       const err = new Error((data && data.error) || `HTTP ${res.status}`);
       err.status = res.status;
       err.body = data;
@@ -68,11 +74,11 @@ class ApiClient {
     return data;
   }
 
-  get(path, opts) {
+  get(path, opts){
     return this.request('GET', path, opts);
   }
 
-  post(path, body, opts) {
+  post(path, body, opts){
     return this.request('POST', path, { ...opts, body });
   }
 
@@ -81,63 +87,80 @@ class ApiClient {
    * for each event. Resolves when the stream ends (server closes it, e.g.
    * on job.end) or rejects on network error / abort.
    */
-  async streamEvents(path, { lastEventId, signal, onEvent, query } = {}) {
+  async streamEvents(path, { lastEventId, signal, onEvent, query } = {}){
     let url = this._url(path);
-    if (query) {
+    if (query){
       const qs = new URLSearchParams(
         Object.entries(query).filter(([, v]) => v !== undefined && v !== null)
       ).toString();
-      if (qs) url += `?${qs}`;
+      if (qs){
+        url += `?${qs}`;
+      }
     }
 
     const headers = this._headers({ Accept: 'text/event-stream' });
-    if (lastEventId) headers['Last-Event-ID'] = String(lastEventId);
+    if (lastEventId){
+      headers['Last-Event-ID'] = String(lastEventId);
+    }
 
     const res = await fetch(url, { headers, signal });
-    if (!res.ok) {
+    if (!res.ok){
       const err = new Error(`HTTP ${res.status}`);
       err.status = res.status;
       throw err;
     }
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
+    const reader = res.body.getReader(),
+      decoder = new TextDecoder();
     let buf = '';
 
-    while (true) {
+    while (true){
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done){
+        break;
+      }
       buf += decoder.decode(value, { stream: true });
 
       let sep;
-      while ((sep = buf.indexOf('\n\n')) !== -1) {
+      while ((sep = buf.indexOf('\n\n')) !== -1){
         const rawEvent = buf.slice(0, sep);
         buf = buf.slice(sep + 2);
         const parsed = parseSseEvent(rawEvent);
-        if (parsed) onEvent(parsed);
+        if (parsed){
+          onEvent(parsed);
+        }
       }
     }
   }
 }
 
-function parseSseEvent(raw) {
-  let event = 'message';
-  let id;
+function parseSseEvent(raw){
+  let event = 'message',
+    id;
   const dataLines = [];
-  for (const line of raw.split('\n')) {
-    if (line.startsWith('event:')) event = line.slice(6).trim();
-    else if (line.startsWith('id:')) id = line.slice(3).trim();
-    else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+  for (const line of raw.split('\n')){
+    if (line.startsWith('event:')){
+      event = line.slice(6).trim();
+    }
+    else if (line.startsWith('id:')){
+      id = line.slice(3).trim();
+    }
+    else if (line.startsWith('data:')){
+      dataLines.push(line.slice(5).trim());
+    }
   }
-  if (dataLines.length === 0 && !id) return null;
-  const raw_data = dataLines.join('\n');
-  return { event, id, data: safeJson(raw_data) ?? raw_data };
+  if (dataLines.length === 0 && !id){
+    return null;
+  }
+  const rawData = dataLines.join('\n');
+  return { event, id, data: safeJson(rawData) ?? rawData };
 }
 
-function safeJson(text) {
+function safeJson(text){
   try {
     return JSON.parse(text);
-  } catch {
+  }
+  catch {
     return undefined;
   }
 }

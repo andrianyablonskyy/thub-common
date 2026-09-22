@@ -31,14 +31,14 @@ const jobSpecSchema = {
         labels: {
           type: 'array',
           items: { type: 'string', minLength: 1 },
-          default: [],
+          default: []
         },
         // Constrains scheduling to resources that are members of this
         // group (§13.1, `thub run --group <id>`) — a third targeting
         // dimension alongside type/labels. Omitted: any matching resource
         // in any (or no) group is eligible, same as before groups existed.
-        group: { type: 'string', minLength: 1 },
-      },
+        group: { type: 'string', minLength: 1 }
+      }
     },
     firmware: {
       type: 'object',
@@ -47,8 +47,8 @@ const jobSpecSchema = {
       properties: {
         url: { type: 'string', format: 'uri' },
         sha256: { type: 'string', pattern: '^[a-f0-9]{64}$' },
-        flashAddress: { type: 'string' },
-      },
+        flashAddress: { type: 'string' }
+      }
     },
     tests: {
       type: 'object',
@@ -57,8 +57,8 @@ const jobSpecSchema = {
       properties: {
         url: { type: 'string', format: 'uri' },
         suite: { type: 'string', default: 'default' },
-        args: { type: 'array', items: { type: 'string' }, default: [] },
-      },
+        args: { type: 'array', items: { type: 'string' }, default: [] }
+      }
     },
     timeoutSec: { type: 'integer', minimum: 1, default: 1800 },
     priority: { type: 'integer', minimum: 0, maximum: 100, default: 50 },
@@ -67,8 +67,8 @@ const jobSpecSchema = {
     // Exercises the full pipeline (schedule, accept, state transitions,
     // logs, artifact, result) without flashing/running anything for real —
     // see README §7.1 "Dry-run the pipeline".
-    dryRun: { type: 'boolean', default: false },
-  },
+    dryRun: { type: 'boolean', default: false }
+  }
 };
 
 module.exports = { jobSpecSchema };
