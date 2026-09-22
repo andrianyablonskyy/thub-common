@@ -77,18 +77,18 @@ const RESOURCE_STATES = Object.freeze({
 
 function exitCodeForJobState(state){
   switch (state){
-  case JOB_STATES.PASSED:
-    return EXIT_CODES.PASSED;
-  case JOB_STATES.FAILED:
-    return EXIT_CODES.FAILED;
-  case JOB_STATES.ERROR:
-  case JOB_STATES.TIMEOUT:
-  case JOB_STATES.LOST:
-    return EXIT_CODES.INFRA;
-  case JOB_STATES.CANCELED:
-    return EXIT_CODES.CANCELED;
-  default:
-    return EXIT_CODES.USAGE;
+    case JOB_STATES.PASSED:
+      return EXIT_CODES.PASSED;
+    case JOB_STATES.FAILED:
+      return EXIT_CODES.FAILED;
+    case JOB_STATES.ERROR:
+    case JOB_STATES.TIMEOUT:
+    case JOB_STATES.LOST:
+      return EXIT_CODES.INFRA;
+    case JOB_STATES.CANCELED:
+      return EXIT_CODES.CANCELED;
+    default:
+      return EXIT_CODES.USAGE;
   }
 }
 
