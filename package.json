@@ -1,8 +1,24 @@
 {
-  "name": "@thub/shared",
+  "name": "@andrian.yablonskyy/test-hub",
   "version": "1.0.0",
   "description": "Shared job-spec schema, state enums and a thin API client used by the Agent and Client",
   "main": "src/index.js",
+  "files": ["src"],
+  "license": "SEE LICENSE IN LICENSE.md",
+  "author": "Andrian Yablonskyy <andrian.yablonskyy@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andrianyablonskyy/thub.git",
+    "directory": "packages/shared"
+  },
+  "homepage": "https://github.com/andrianyablonskyy/thub/tree/main/packages/shared#readme",
+  "bugs": "https://github.com/andrianyablonskyy/thub/issues",
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1"

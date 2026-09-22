@@ -1,3 +1,16 @@
+/**
+ * @file        packages/shared/src/job-spec.schema.js
+ * @description Ajv JSON schema for the job specification (README §4.3)
+ *
+ * @author      Andrian Yablonskyy
+ * @copyright   Copyright (c) 2026 Andrian Yablonskyy. All rights reserved.
+ *
+ * This file is part of TestHub and is proprietary and confidential.
+ * Unauthorized copying, modification, distribution, or use of this file,
+ * via any medium, is strictly prohibited without prior written permission
+ * from AdSystem.PRO.
+ */
+
 'use strict';
 
 // Matches the job spec shape documented in README.md §4.3.
