@@ -1,6 +1,6 @@
 /**
  * @file        eslint.config.js
- * @description ESLint flat config for @andrian.yablonskyy/test-hub: stylistic/promise rules plus Node globals
+ * @description ESLint flat config for @andrian.yablonskyy/thub-common: stylistic/promise rules plus Node globals
  *
  * @author      Andrian Yablonskyy
  * @copyright   Copyright (c) 2026 Andrian Yablonskyy. All rights reserved.
