@@ -8,19 +8,29 @@
   "author": "Andrian Yablonskyy <andrian.yablonskyy@gmail.com>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/andrianyablonskyy/thub.git",
-    "directory": "packages/shared"
+    "url": "git+https://github.com/andrianyablonskyy/thub-common.git"
   },
-  "homepage": "https://github.com/andrianyablonskyy/thub/tree/main/packages/shared#readme",
-  "bugs": "https://github.com/andrianyablonskyy/thub/issues",
+  "homepage": "https://github.com/andrianyablonskyy/thub-common#readme",
+  "bugs": "https://github.com/andrianyablonskyy/thub-common/issues",
   "engines": {
     "node": ">=24"
   },
   "publishConfig": {
     "access": "public"
   },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
   "dependencies": {
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1"
+  },
+  "devDependencies": {
+    "@stylistic/eslint-plugin": "^5.10.0",
+    "eslint": "^10.11.0",
+    "eslint-plugin-promise": "^7.3.0",
+    "globals": "^17.12.0"
   }
 }
