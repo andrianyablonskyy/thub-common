@@ -63,6 +63,10 @@ const jobSpecSchema = {
     timeoutSec: { type: 'integer', minimum: 1, default: 1800 },
     priority: { type: 'integer', minimum: 0, maximum: 100, default: 50 },
     source: { enum: ['ci', 'cli'] },
+    // Free-text job owner (`thub run --user <name>`, §7.1) — purely a
+    // label shown on the Client and dashboard to tell whose job is whose,
+    // not an identity: nothing authenticates or enforces it.
+    user: { type: 'string', minLength: 1 },
     meta: { type: 'object' },
     // Exercises the full pipeline (schedule, accept, state transitions,
     // logs, artifact, result) without flashing/running anything for real —

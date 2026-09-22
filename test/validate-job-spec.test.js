@@ -49,3 +49,25 @@ test('rejects unknown top-level fields (no shell commands, §4.3)', () => {
   assert.equal(valid, false);
   assert.ok(errors.some((e) => e.includes('additional')));
 });
+
+test('accepts an optional user label (`thub run --user`, §7.1)', () => {
+  const { valid, spec, errors } = validateJobSpec({
+    target: { type: 'sw' },
+    firmware: { url: 'https://x/app.bin' },
+    tests: { url: 'https://x/tests.tar.gz' },
+    user: 'alice'
+  });
+  assert.equal(valid, true, errors.join('; '));
+  assert.equal(spec.user, 'alice');
+});
+
+test('rejects an empty user label', () => {
+  const { valid, errors } = validateJobSpec({
+    target: { type: 'sw' },
+    firmware: { url: 'https://x/app.bin' },
+    tests: { url: 'https://x/tests.tar.gz' },
+    user: ''
+  });
+  assert.equal(valid, false);
+  assert.ok(errors.length > 0);
+});
