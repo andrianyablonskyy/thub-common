@@ -46,7 +46,8 @@ A minimal `fetch`-based HTTP client for the Coordinator's `/api/v1` surface, wit
 ```js
 const { ApiClient } = require('@andrian.yablonskyy/thub-common');
 
-const client = new ApiClient({ baseUrl: 'https://thub.example.com', token: 'agt_...' });
+// userAgent is optional; the Coordinator records "thub-agent/<v>" / "thub-client/<v>" versions for its dashboard
+const client = new ApiClient({ baseUrl: 'https://thub.example.com', token: 'agt_...', userAgent: 'thub-agent/1.0.8' });
 const job = await client.post('/jobs', spec);
 await client.streamEvents(`/jobs/${job.jobId}/logs/stream`, {
   onEvent: ({ event, id, data }) => console.log(event, data)

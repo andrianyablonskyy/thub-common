@@ -20,12 +20,15 @@
  * and manual usage identical").
  */
 class ApiClient{
-  constructor({ baseUrl, token }){
+  // `userAgent` (e.g. "thub-agent/1.0.8") is how the Coordinator learns
+  // which Agent/Client version is talking to it, for the dashboard.
+  constructor({ baseUrl, token, userAgent }){
     if (!baseUrl){
       throw new Error('ApiClient requires baseUrl');
     }
     this.baseUrl = baseUrl.replace(/\/+$/, '');
     this.token = token;
+    this.userAgent = userAgent;
   }
 
   _url(path){
@@ -34,6 +37,9 @@ class ApiClient{
 
   _headers(extra = {}){
     const headers = { ...extra };
+    if (this.userAgent){
+      headers['User-Agent'] = this.userAgent;
+    }
     if (this.token){
       headers.Authorization = `Bearer ${this.token}`;
     }
