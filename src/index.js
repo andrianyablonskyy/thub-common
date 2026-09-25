@@ -1,6 +1,6 @@
 /**
  * @file        packages/shared/src/index.js
- * @description Public entry point re-exporting shared states, schema, and API client
+ * @description Public entry point re-exporting shared states, schema, API client and update helpers
  *
  * @author      Andrian Yablonskyy
  * @copyright   Copyright (c) 2026 Andrian Yablonskyy. All rights reserved.
@@ -16,5 +16,6 @@
 module.exports = {
   ...require('./states'),
   ...require('./validate-job-spec'),
+  ...require('./updates'),
   ApiClient: require('./api-client').ApiClient
 };
