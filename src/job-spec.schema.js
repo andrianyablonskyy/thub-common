@@ -68,6 +68,8 @@ const jobSpecSchema = {
     },
     timeoutSec: { type: 'integer', minimum: 1, default: 1800 },
     priority: { type: 'integer', minimum: 0, maximum: 100, default: 50 },
+    // Set by the Coordinator from the agent token's kind; any value an
+    // (older) Agent sends is accepted but overwritten.
     source: { enum: ['ci', 'cli'] },
     // Free-text job owner (`thub run --user <name>`, §7.1) — purely a
     // label shown on the Client and dashboard to tell whose job is whose,
