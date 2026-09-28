@@ -18,6 +18,10 @@
 const DOCKER_IMAGE_PATTERN =
     '^[A-Za-z0-9][A-Za-z0-9.-]*(:[0-9]+)?(/[a-z0-9]+((\\.|_|__|-+)[a-z0-9]+)*)*(:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})?(@sha256:[a-f0-9]{64})?$',
 
+  // A git branch or tag name: no leading "-" or "/", no "..", no spaces or
+  // the characters git forbids (~^:?*[\), not ending in "/", ".lock" or ".".
+  GIT_REF_PATTERN = '^(?![-/])(?!.*\\.\\.)(?!.*//)(?!.*(/|\\.lock|\\.)$)[A-Za-z0-9._/+@-]+$',
+
   // Matches the job spec shape documented in README.md §4.3.
   // Deliberately has no field for shell commands: the Client only ever
   // runs the fixed entry point from the downloaded test package — the
@@ -66,12 +70,31 @@ const DOCKER_IMAGE_PATTERN =
           flashAddress: { type: 'string' }
         }
       },
+      // Where the tests come from — exactly one of `url` (an archive: tar in
+      // any compression, or zip) or `git` (a repository at a branch, tag or
+      // commit; default: its default branch) — and how they start: `command`
+      // (a shell command run in the sources, if the Client allows it:
+      // allowJobCommands), else the package's own run-tests.sh. Combinations
+      // are checked in validate-job-spec.js.
       tests: {
         type: 'object',
         additionalProperties: false,
-        required: ['url'],
         properties: {
           url: { type: 'string', format: 'uri' },
+          git: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['url'],
+            properties: {
+              url: { type: 'string', minLength: 1, maxLength: 2048 },
+              // Ref names as git allows them — never starting with "-",
+              // so none can be taken for a git option.
+              branch: { type: 'string', maxLength: 255, pattern: GIT_REF_PATTERN },
+              tag: { type: 'string', maxLength: 255, pattern: GIT_REF_PATTERN },
+              commit: { type: 'string', pattern: '^[0-9a-fA-F]{7,40}$' }
+            }
+          },
+          command: { type: 'string', minLength: 1, maxLength: 4096 },
           suite: { type: 'string', default: 'default' },
           args: { type: 'array', items: { type: 'string' }, default: [] }
         }
