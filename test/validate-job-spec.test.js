@@ -71,3 +71,9 @@ test('rejects an empty user label', () => {
   assert.equal(valid, false);
   assert.ok(errors.length > 0);
 });
+
+test('accepts an optional target.client (`thub run --client`, §7.1) and rejects an empty one', () => {
+  const base = { firmware: { url: 'https://x/app.bin' }, tests: { url: 'https://x/tests.tar.gz' } };
+  assert.equal(validateJobSpec({ ...base, target: { type: 'hw', client: 'lab-hw-01' } }).valid, true);
+  assert.equal(validateJobSpec({ ...base, target: { type: 'hw', client: '' } }).valid, false);
+});
