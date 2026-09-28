@@ -15,7 +15,7 @@
 
 const test = require('node:test'),
   assert = require('node:assert/strict'),
-  { formatDateTime } = require('../src/datetime');
+  { formatDateTime, parseDateTime } = require('../src/datetime');
 
 test('formats as dd/mm/yyyy HH:MM:SS with a 24-hour clock', () => {
   assert.equal(formatDateTime('2026-09-28T14:05:03.123Z', { timeZone: 'UTC' }), '28/09/2026 14:05:03');
@@ -38,4 +38,19 @@ test('accepts Date and epoch ms; empty or invalid input gives the fallback', () 
   assert.equal(formatDateTime(null), '—');
   assert.equal(formatDateTime('', { fallback: 'never' }), 'never');
   assert.equal(formatDateTime('not a date'), '—');
+});
+
+test('parseDateTime reads dd/mm/yyyy HH:MM[:SS] as wall time in the zone', () => {
+  assert.equal(parseDateTime('28/09/2026 14:05:03', { timeZone: 'UTC' }).toISOString(), '2026-09-28T14:05:03.000Z');
+  assert.equal(parseDateTime('29/09/2026 01:30', { timeZone: 'Europe/Kyiv' }).toISOString(), '2026-09-28T22:30:00.000Z');
+  assert.equal(parseDateTime('15/01/2026', { timeZone: 'Europe/Kyiv' }).toISOString(), '2026-01-14T22:00:00.000Z'); // winter, UTC+2
+});
+
+test('parseDateTime round-trips formatDateTime and rejects invalid input', () => {
+  const iso = '2026-03-29T05:00:00.000Z',
+    timeZone = 'America/New_York';
+  assert.equal(parseDateTime(formatDateTime(iso, { timeZone }), { timeZone }).toISOString(), iso);
+  for (const bad of ['31/02/2026', '28/09/2026 25:00', '2026-09-28', '', null, '28/13/2026 10:00']){
+    assert.equal(parseDateTime(bad, { timeZone: 'UTC' }), null, String(bad));
+  }
 });
