@@ -13,74 +13,84 @@
 
 'use strict';
 
-// Matches the job spec shape documented in README.md §4.3.
-// Deliberately has no field for shell commands: the Client only ever
-// runs the fixed entry point from the downloaded test package.
-const jobSpecSchema = {
-  $id: 'https://thub.example.com/schemas/job-spec.json',
-  type: 'object',
-  additionalProperties: false,
-  required: ['target', 'firmware', 'tests'],
-  properties: {
-    target: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['type'],
-      properties: {
-        type: { enum: ['hw', 'sw'] },
-        labels: {
-          type: 'array',
-          items: { type: 'string', minLength: 1 },
-          default: []
-        },
-        // Constrains scheduling to resources that are members of this
-        // group (§13.1, `thub run --group <id>`) — a third targeting
-        // dimension alongside type/labels. Omitted: any matching resource
-        // in any (or no) group is eligible, same as before groups existed.
-        group: { type: 'string', minLength: 1 },
-        // Pins the job to one specific Client (`thub run --client <name|id>`):
-        // it's queued for that resource alone and waits for it even if other
-        // matching resources are idle. Accepts a resource name or id; the
-        // Coordinator resolves it to the resource id at submission time, so
-        // a later rename of the Client doesn't orphan the queued job.
-        client: { type: 'string', minLength: 1 }
-      }
-    },
-    firmware: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['url'],
-      properties: {
-        url: { type: 'string', format: 'uri' },
-        sha256: { type: 'string', pattern: '^[a-f0-9]{64}$' },
-        flashAddress: { type: 'string' }
-      }
-    },
-    tests: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['url'],
-      properties: {
-        url: { type: 'string', format: 'uri' },
-        suite: { type: 'string', default: 'default' },
-        args: { type: 'array', items: { type: 'string' }, default: [] }
-      }
-    },
-    timeoutSec: { type: 'integer', minimum: 1, default: 1800 },
-    priority: { type: 'integer', minimum: 0, maximum: 100, default: 50 },
-    // Set by the Coordinator from the agent token's kind; any value an
-    // (older) Agent sends is accepted but overwritten.
-    source: { enum: ['ci', 'cli'] },
-    // Free-text job owner (`thub run --user <name>`, §7.1) — purely a
-    // label shown on the Client and dashboard to tell whose job is whose,
-    // not an identity: nothing authenticates or enforces it.
-    user: { type: 'string', minLength: 1 },
-    meta: { type: 'object' },
-    // Exercises the full pipeline (schedule, accept, state transitions,
-    // logs, artifact, result) without flashing/running anything for real —
-    // see README §7.1 "Dry-run the pipeline".
-    dryRun: { type: 'boolean', default: false }
-  }
-};
+// A Docker image reference: [host[:port]/]path[:tag][@sha256:digest], e.g.
+// `alpine`, `alpine:3.20`, `library/ubuntu:24.04`, `registry.lab:5000/emu:1`.
+const DOCKER_IMAGE_PATTERN =
+    '^[A-Za-z0-9][A-Za-z0-9.-]*(:[0-9]+)?(/[a-z0-9]+((\\.|_|__|-+)[a-z0-9]+)*)*(:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})?(@sha256:[a-f0-9]{64})?$',
 
-module.exports = { jobSpecSchema };
+  // Matches the job spec shape documented in README.md §4.3.
+  // Deliberately has no field for shell commands: the Client only ever
+  // runs the fixed entry point from the downloaded test package — the
+  // one exception is firmware.image, which a Client must opt in to.
+  jobSpecSchema = {
+    $id: 'https://thub.example.com/schemas/job-spec.json',
+    type: 'object',
+    additionalProperties: false,
+    required: ['target', 'tests'],
+    properties: {
+      target: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['type'],
+        properties: {
+          type: { enum: ['hw', 'sw'] },
+          labels: {
+            type: 'array',
+            items: { type: 'string', minLength: 1 },
+            default: []
+          },
+          // Constrains scheduling to resources that are members of this
+          // group (§13.1, `thub run --group <id>`) — a third targeting
+          // dimension alongside type/labels. Omitted: any matching resource
+          // in any (or no) group is eligible, same as before groups existed.
+          group: { type: 'string', minLength: 1 },
+          // Pins the job to one specific Client (`thub run --client <name|id>`):
+          // it's queued for that resource alone and waits for it even if other
+          // matching resources are idle. Accepts a resource name or id; the
+          // Coordinator resolves it to the resource id at submission time, so
+          // a later rename of the Client doesn't orphan the queued job.
+          client: { type: 'string', minLength: 1 }
+        }
+      },
+      // Exactly one of `url` (a firmware file the Client downloads — HW and
+      // SW) or `image` (a Docker image an SW Client runs instead of its own
+      // sw.image, if it allows that: sw.allowJobImages). The combinations are
+      // checked in validate-job-spec.js, for readable errors.
+      firmware: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          url: { type: 'string', format: 'uri' },
+          image: { type: 'string', maxLength: 255, pattern: DOCKER_IMAGE_PATTERN },
+          sha256: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+          flashAddress: { type: 'string' }
+        }
+      },
+      tests: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['url'],
+        properties: {
+          url: { type: 'string', format: 'uri' },
+          suite: { type: 'string', default: 'default' },
+          args: { type: 'array', items: { type: 'string' }, default: [] }
+        }
+      },
+      timeoutSec: { type: 'integer', minimum: 1, default: 1800 },
+      priority: { type: 'integer', minimum: 0, maximum: 100, default: 50 },
+      // Set by the Coordinator from the agent token's kind; any value an
+      // (older) Agent sends is accepted but overwritten.
+      source: { enum: ['ci', 'cli'] },
+      // Free-text job owner (`thub run --user <name>`, §7.1) — purely a
+      // label shown on the Client and dashboard to tell whose job is whose,
+      // not an identity: nothing authenticates or enforces it.
+      user: { type: 'string', minLength: 1 },
+      meta: { type: 'object' },
+      // Exercises the full pipeline (schedule, accept, state transitions,
+      // logs, artifact, result) without flashing/running anything for real —
+      // see README §7.1 "Dry-run the pipeline".
+      dryRun: { type: 'boolean', default: false }
+    }
+  };
+
+module.exports = { jobSpecSchema, DOCKER_IMAGE_PATTERN };
