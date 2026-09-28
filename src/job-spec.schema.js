@@ -37,7 +37,13 @@ const jobSpecSchema = {
         // group (§13.1, `thub run --group <id>`) — a third targeting
         // dimension alongside type/labels. Omitted: any matching resource
         // in any (or no) group is eligible, same as before groups existed.
-        group: { type: 'string', minLength: 1 }
+        group: { type: 'string', minLength: 1 },
+        // Pins the job to one specific Client (`thub run --client <name|id>`):
+        // it's queued for that resource alone and waits for it even if other
+        // matching resources are idle. Accepts a resource name or id; the
+        // Coordinator resolves it to the resource id at submission time, so
+        // a later rename of the Client doesn't orphan the queued job.
+        client: { type: 'string', minLength: 1 }
       }
     },
     firmware: {
