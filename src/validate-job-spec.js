@@ -27,12 +27,32 @@ const validateFn = ajv.compile(jobSpecSchema);
  */
 function validateJobSpec(spec){
   const clone = JSON.parse(JSON.stringify(spec ?? {})),
-    valid = validateFn(clone);
-  return {
-    valid,
-    spec: clone,
-    errors: valid ? [] : (validateFn.errors || []).map((e) => `${e.instancePath || '/'} ${e.message}`)
-  };
+    schemaValid = validateFn(clone),
+    errors = schemaValid ? [] : (validateFn.errors || []).map((e) => `${e.instancePath || '/'} ${e.message}`);
+  errors.push(...firmwareErrors(clone));
+  return { valid: errors.length === 0, spec: clone, errors };
+}
+
+// firmware.url vs firmware.image — spelled out here rather than as schema
+// oneOf/if-then, whose errors ("must match exactly one schema") say little.
+function firmwareErrors(spec){
+  const fw = spec.firmware;
+  if (!fw || typeof fw !== 'object'){
+    return ['/firmware is required'];
+  }
+  if (fw.url && fw.image){
+    return ['/firmware give either url (a firmware file) or image (a Docker image), not both'];
+  }
+  if (!fw.url && !fw.image){
+    return ['/firmware needs url (a firmware file) or image (a Docker image, SW jobs only)'];
+  }
+  if (fw.image && spec.target?.type === 'hw'){
+    return ['/firmware/image a Docker image only works for SW jobs (target.type "sw") — an HW job flashes a firmware file: use firmware.url'];
+  }
+  if (fw.image && fw.sha256){
+    return ['/firmware/sha256 applies to a firmware file (url) only — pin a Docker image by digest instead (image@sha256:...)'];
+  }
+  return [];
 }
 
 module.exports = { validateJobSpec };

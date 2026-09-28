@@ -77,3 +77,20 @@ test('accepts an optional target.client (`thub run --client`, §7.1) and rejects
   assert.equal(validateJobSpec({ ...base, target: { type: 'hw', client: 'lab-hw-01' } }).valid, true);
   assert.equal(validateJobSpec({ ...base, target: { type: 'hw', client: '' } }).valid, false);
 });
+
+test('firmware: a url, or for SW jobs a Docker image — never both, never neither', () => {
+  const base = { tests: { url: 'https://x/t.tar.gz' } },
+    check = (target, firmware) => validateJobSpec({ ...base, target, firmware });
+  assert.equal(check({ type: 'sw' }, { image: 'alpine' }).valid, true);
+  assert.equal(check({ type: 'sw' }, { image: 'registry.lab:5000/team/emu:1.2' }).valid, true);
+  assert.equal(check({ type: 'sw' }, { image: `alpine@sha256:${'a'.repeat(64)}` }).valid, true);
+  assert.equal(check({ type: 'hw' }, { url: 'https://x/app.bin' }).valid, true);
+
+  assert.match(check({ type: 'hw' }, { image: 'alpine' }).errors.join(), /only works for SW jobs/);
+  assert.match(check({ type: 'sw' }, { url: 'https://x/a', image: 'alpine' }).errors.join(), /not both/);
+  assert.match(check({ type: 'sw' }, {}).errors.join(), /needs url .* or image/);
+  assert.match(check({ type: 'sw' }).errors.join(), /firmware is required/);
+  assert.match(check({ type: 'sw' }, { image: 'alpine', sha256: 'a'.repeat(64) }).errors.join(), /pin a Docker image by digest/);
+  assert.equal(check({ type: 'sw' }, { image: 'Alpine; rm -rf /' }).valid, false);
+  assert.match(check({ type: 'hw' }, { url: 'alpine' }).errors.join(), /format "uri"/);
+});
