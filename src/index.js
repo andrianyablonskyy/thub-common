@@ -17,5 +17,6 @@ module.exports = {
   ...require('./states'),
   ...require('./validate-job-spec'),
   ...require('./updates'),
+  ...require('./datetime'),
   ApiClient: require('./api-client').ApiClient
 };
