@@ -20,5 +20,6 @@ module.exports = {
   ...require('./datetime'),
   ...require('./cron'),
   ...require('./client-config'),
+  ...require('./split-args'),
   ApiClient: require('./api-client').ApiClient
 };
