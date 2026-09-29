@@ -21,12 +21,13 @@ const { validateJobSpec } = require('@andrian.yablonskyy/thub-common');
 
 const { valid, spec, errors } = validateJobSpec({
   target: { type: 'hw', labels: ['board:nucleo-f401re'] },
-  firmware: { url: 'https://artifactory.example.com/app.bin' },
-  tests: { url: 'https://artifactory.example.com/tests.tar.gz' }
+  command: './ci/test.sh',
+  downloads: [{ url: 'https://artifactory.example.com/app.bin' }],
+  git: { url: 'https://github.com/yourorg/firmware-tests.git', ref: 'v1.4.0' }
 });
 ```
 
-The schema deliberately has no field for shell commands — a job only ever names a firmware image and a test package; the Client runs a fixed entry point (`run-tests.sh`) from that package, never arbitrary code from the spec itself. Top-level fields: `target` (`type`, `labels`, optional `group`), `firmware` (`url`, optional `sha256`/`flashAddress`), `tests` (`url`, `suite`, `args`), `timeoutSec`, `priority`, `source` (`ci`/`cli`), `user` (a free-text job-owner label), `meta` (arbitrary key/value metadata), and `dryRun`.
+A job is a task: `command` (required — the shell command the Client runs as its entry point, `args` as `"$@"`), with optional inputs `downloads` (`[{ url }]`), `git` (`url`, optional `ref` — branch, tag or commit — and `depth`, default 1) and, for SW jobs, `image` (a Docker image to run as the DUT). Other top-level fields: `target` (`type`, `labels`, optional `group`/`client`), `suite`, `timeoutSec`, `priority`, `source` (`ci`/`cli`), `user` (a free-text job-owner label), `meta` (arbitrary key/value metadata), and `dryRun`. A spec in the old shape (`firmware`/`tests`, from an Agent older than `--command`) is refused with a message to update the Agent.
 
 ### State enums and exit codes
 

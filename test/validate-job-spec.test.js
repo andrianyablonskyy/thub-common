@@ -17,101 +17,73 @@ const test = require('node:test'),
   assert = require('node:assert/strict'),
   { validateJobSpec } = require('../src/validate-job-spec');
 
-test('accepts a minimal valid spec and fills defaults', () => {
-  const { valid, spec, errors } = validateJobSpec({
-    target: { type: 'hw' },
-    firmware: { url: 'https://artifactory.example.com/app.bin' },
-    tests: { url: 'https://artifactory.example.com/tests.tar.gz' }
-  });
+const minimal = (extra = {}) => ({ target: { type: 'hw' }, command: './ci/run.sh', ...extra });
+
+test('accepts a minimal valid spec (target + command) and fills defaults', () => {
+  const { valid, spec, errors } = validateJobSpec(minimal());
   assert.equal(valid, true, errors.join('; '));
   assert.equal(spec.timeoutSec, 1800);
   assert.equal(spec.priority, 50);
   assert.deepEqual(spec.target.labels, []);
+  assert.deepEqual(spec.downloads, []);
+  assert.deepEqual(spec.args, []);
+  assert.equal(spec.suite, 'default');
 });
 
-test('rejects a spec with no target type', () => {
-  const { valid, errors } = validateJobSpec({
-    target: {},
-    firmware: { url: 'https://x/app.bin' },
-    tests: { url: 'https://x/tests.tar.gz' }
-  });
+test('the command is mandatory and non-empty', () => {
+  assert.match(validateJobSpec({ target: { type: 'hw' } }).errors.join(), /command/);
+  assert.equal(validateJobSpec(minimal({ command: '' })).valid, false);
+});
+
+test('rejects a spec with no target type, and unknown top-level fields', () => {
+  assert.equal(validateJobSpec({ target: {}, command: 'x' }).valid, false);
+  assert.ok(validateJobSpec(minimal({ run: 'x' })).errors.some((e) => e.includes('additional')));
+});
+
+test('an old-Agent spec (firmware/tests) gets an "update the Agent" error', () => {
+  const { valid, errors } = validateJobSpec({ target: { type: 'hw' }, firmware: { url: 'https://x/a' }, tests: { url: 'https://x/t' } });
   assert.equal(valid, false);
-  assert.ok(errors.length > 0);
+  assert.match(errors.join(), /older Agent.*thub self-update/);
 });
 
-test('rejects unknown top-level fields (no shell commands, §4.3)', () => {
-  const { valid, errors } = validateJobSpec({
-    target: { type: 'sw' },
-    firmware: { url: 'https://x/app.bin' },
-    tests: { url: 'https://x/tests.tar.gz' },
-    command: 'rm -rf /'
-  });
-  assert.equal(valid, false);
-  assert.ok(errors.some((e) => e.includes('additional')));
-});
-
-test('accepts an optional user label (`thub run --user`, §7.1)', () => {
-  const { valid, spec, errors } = validateJobSpec({
-    target: { type: 'sw' },
-    firmware: { url: 'https://x/app.bin' },
-    tests: { url: 'https://x/tests.tar.gz' },
-    user: 'alice'
-  });
+test('accepts an optional user label (`thub run --user`, §7.1), not an empty one', () => {
+  const { valid, spec, errors } = validateJobSpec(minimal({ user: 'alice' }));
   assert.equal(valid, true, errors.join('; '));
   assert.equal(spec.user, 'alice');
-});
-
-test('rejects an empty user label', () => {
-  const { valid, errors } = validateJobSpec({
-    target: { type: 'sw' },
-    firmware: { url: 'https://x/app.bin' },
-    tests: { url: 'https://x/tests.tar.gz' },
-    user: ''
-  });
-  assert.equal(valid, false);
-  assert.ok(errors.length > 0);
+  assert.equal(validateJobSpec(minimal({ user: '' })).valid, false);
 });
 
 test('accepts an optional target.client (`thub run --client`, §7.1) and rejects an empty one', () => {
-  const base = { firmware: { url: 'https://x/app.bin' }, tests: { url: 'https://x/tests.tar.gz' } };
-  assert.equal(validateJobSpec({ ...base, target: { type: 'hw', client: 'lab-hw-01' } }).valid, true);
-  assert.equal(validateJobSpec({ ...base, target: { type: 'hw', client: '' } }).valid, false);
+  assert.equal(validateJobSpec({ ...minimal(), target: { type: 'hw', client: 'lab-hw-01' } }).valid, true);
+  assert.equal(validateJobSpec({ ...minimal(), target: { type: 'hw', client: '' } }).valid, false);
 });
 
-test('firmware: a url, or for SW jobs a Docker image — never both, never neither', () => {
-  const base = { tests: { url: 'https://x/t.tar.gz' } },
-    check = (target, firmware) => validateJobSpec({ ...base, target, firmware });
-  assert.equal(check({ type: 'sw' }, { image: 'alpine' }).valid, true);
-  assert.equal(check({ type: 'sw' }, { image: 'registry.lab:5000/team/emu:1.2' }).valid, true);
-  assert.equal(check({ type: 'sw' }, { image: `alpine@sha256:${'a'.repeat(64)}` }).valid, true);
-  assert.equal(check({ type: 'hw' }, { url: 'https://x/app.bin' }).valid, true);
-
-  assert.match(check({ type: 'hw' }, { image: 'alpine' }).errors.join(), /only works for SW jobs/);
-  assert.match(check({ type: 'sw' }, { url: 'https://x/a', image: 'alpine' }).errors.join(), /not both/);
-  assert.match(check({ type: 'sw' }, {}).errors.join(), /needs url .* or image/);
-  assert.match(check({ type: 'sw' }).errors.join(), /firmware is required/);
-  assert.match(check({ type: 'sw' }, { image: 'alpine', sha256: 'a'.repeat(64) }).errors.join(), /pin a Docker image by digest/);
-  assert.equal(check({ type: 'sw' }, { image: 'Alpine; rm -rf /' }).valid, false);
-  assert.match(check({ type: 'hw' }, { url: 'alpine' }).errors.join(), /format "uri"/);
+test('downloads: any number of http(s) URLs', () => {
+  assert.equal(validateJobSpec(minimal({ downloads: [{ url: 'https://x/app.bin' }, { url: 'http://localhost/t.tgz' }] })).valid, true);
+  assert.match(validateJobSpec(minimal({ downloads: [{ url: 'not a url' }] })).errors.join(), /format "uri"/);
+  assert.equal(validateJobSpec(minimal({ downloads: [{}] })).valid, false);
 });
 
-test('tests: an archive url or a git repo (+ at most one ref), optional command; unsafe git input rejected', () => {
-  const base = { target: { type: 'sw' }, firmware: { image: 'alpine' } },
-    check = (tests) => validateJobSpec({ ...base, tests });
-  assert.equal(check({ url: 'http://localhost/test-cases' }).valid, true);
-  assert.equal(check({ git: { url: 'https://git.lab/team/tests.git', branch: 'release/1.2' } }).valid, true);
-  assert.equal(check({ git: { url: 'git@github.com:team/tests.git', tag: 'v1.0.0' } }).valid, true);
-  assert.equal(check({ git: { url: 'ssh://git@git.lab/tests', commit: 'a1b2c3d' }, command: 'make test' }).valid, true);
+test('image: a Docker image reference, SW jobs only', () => {
+  const sw = (image) => validateJobSpec({ ...minimal({ image }), target: { type: 'sw' } });
+  assert.equal(sw('alpine').valid, true);
+  assert.equal(sw('registry.lab:5000/team/emu:1.2').valid, true);
+  assert.equal(sw(`alpine@sha256:${'a'.repeat(64)}`).valid, true);
+  assert.equal(sw('Alpine; rm -rf /').valid, false);
+  assert.match(validateJobSpec(minimal({ image: 'alpine' })).errors.join(), /only works for SW jobs/);
+});
 
-  assert.match(check({}).errors.join(), /needs url .* or git/);
-  assert.match(check({ url: 'http://x/a.tgz', git: { url: 'https://x/r.git' } }).errors.join(), /not both/);
-  assert.match(check({ git: { url: 'https://x/r.git', branch: 'a', tag: 'b' } }).errors.join(), /at most one of branch, tag or commit/);
+test('git: repo URL, optional ref (branch/tag/commit) and depth (default 1); unsafe input rejected', () => {
+  const check = (git) => validateJobSpec(minimal({ git }));
+  assert.equal(check({ url: 'https://git.lab/team/tests.git' }).spec.git.depth, 1);
+  assert.equal(check({ url: 'https://git.lab/team/tests.git', ref: 'release/1.2', depth: 5 }).valid, true);
+  assert.equal(check({ url: 'git@github.com:team/tests.git', ref: 'v1.0.0' }).valid, true);
+  assert.equal(check({ url: 'ssh://git@git.lab/tests', ref: 'a1b2c3d', depth: 0 }).valid, true);
   for (const url of ['ext::sh -c touch% /tmp/pwned', 'file:///etc', '/srv/repo.git', '--upload-pack=touch /tmp/x']){
-    assert.equal(check({ git: { url } }).valid, false, url);
+    assert.equal(check({ url }).valid, false, url);
   }
-  for (const branch of ['-b', '--upload-pack=x', 'a..b', 'a b', 'feature/', 'x.lock']){
-    assert.equal(check({ git: { url: 'https://x/r.git', branch } }).valid, false, branch);
+  for (const ref of ['-b', '--upload-pack=x', 'a..b', 'a b', 'feature/', 'x.lock']){
+    assert.equal(check({ url: 'https://x/r.git', ref }).valid, false, ref);
   }
-  assert.equal(check({ git: { url: 'https://x/r.git', commit: 'xyz1234' } }).valid, false);
-  assert.equal(check({ url: 'http://x/a.tgz', command: '' }).valid, false);
+  assert.equal(check({ url: 'https://x/r.git', depth: -1 }).valid, false);
 });

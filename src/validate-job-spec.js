@@ -26,62 +26,44 @@ const validateFn = ajv.compile(jobSpecSchema);
  * Returns { valid, spec, errors }.
  */
 function validateJobSpec(spec){
+  const legacy = legacyShapeError(spec);
+  if (legacy){
+    return { valid: false, spec: JSON.parse(JSON.stringify(spec ?? {})), errors: [legacy] };
+  }
   const clone = JSON.parse(JSON.stringify(spec ?? {})),
     schemaValid = validateFn(clone),
     errors = schemaValid ? [] : (validateFn.errors || []).map((e) => `${e.instancePath || '/'} ${e.message}`);
-  errors.push(...firmwareErrors(clone), ...testsErrors(clone));
+  errors.push(...crossFieldErrors(clone));
   return { valid: errors.length === 0, spec: clone, errors };
 }
 
-// Git transports a Client may fetch test sources over. Never `ext::` (runs
-// a command), `file://` or a local path: the Client also sets
+// Specs from an Agent older than --command (firmware/tests fields) can't be
+// translated faithfully (they relied on the Client flashing and on
+// run-tests.sh) — say what to do instead of listing unknown fields.
+function legacyShapeError(spec){
+  if (spec && typeof spec === 'object' && ('firmware' in spec || 'tests' in spec) && !('command' in spec)){
+    return '/ this job spec is from an older Agent (firmware/tests fields) — update the Agent (thub self-update) ' +
+      'and use --command, --download-file, --docker-image and --git-repo';
+  }
+  return null;
+}
+
+// Git transports a Client may fetch sources over. Never `ext::` (runs a
+// command), `file://` or a local path: the Client also sets
 // GIT_ALLOW_PROTOCOL to the same list (downloader.js).
 const GIT_URL = /^(?:(?:https?|ssh|git):\/\/[^\s]+|[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:[^\s]+)$/;
 
-// tests.url (archive) vs tests.git (repo + at most one of branch/tag/commit).
-function testsErrors(spec){
-  const tests = spec.tests;
-  if (!tests || typeof tests !== 'object'){
-    return [];
+// Rules across fields, spelled out here rather than as schema if/then,
+// whose errors ("must match a schema in then") say little.
+function crossFieldErrors(spec){
+  const errors = [];
+  if (spec.image && spec.target?.type === 'hw'){
+    errors.push('/image a Docker image only works for SW jobs (target.type "sw")');
   }
-  if (tests.url && tests.git){
-    return ['/tests give either url (an archive) or git (a repository), not both'];
+  if (spec.git && !GIT_URL.test(spec.git.url || '')){
+    errors.push('/git/url must be an https://, http://, ssh:// or git:// URL, or user@host:path');
   }
-  if (!tests.url && !tests.git){
-    return ['/tests needs url (an archive: tar/tar.gz/zip) or git (a repository)'];
-  }
-  if (tests.git){
-    if (!GIT_URL.test(tests.git.url || '')){
-      return ['/tests/git/url must be an https://, http://, ssh:// or git:// URL, or user@host:path'];
-    }
-    const refs = ['branch', 'tag', 'commit'].filter((k) => tests.git[k]);
-    if (refs.length > 1){
-      return [`/tests/git give at most one of branch, tag or commit (got ${refs.join(', ')})`];
-    }
-  }
-  return [];
-}
-
-// firmware.url vs firmware.image — spelled out here rather than as schema
-// oneOf/if-then, whose errors ("must match exactly one schema") say little.
-function firmwareErrors(spec){
-  const fw = spec.firmware;
-  if (!fw || typeof fw !== 'object'){
-    return ['/firmware is required'];
-  }
-  if (fw.url && fw.image){
-    return ['/firmware give either url (a firmware file) or image (a Docker image), not both'];
-  }
-  if (!fw.url && !fw.image){
-    return ['/firmware needs url (a firmware file) or image (a Docker image, SW jobs only)'];
-  }
-  if (fw.image && spec.target?.type === 'hw'){
-    return ['/firmware/image a Docker image only works for SW jobs (target.type "sw") — an HW job flashes a firmware file: use firmware.url'];
-  }
-  if (fw.image && fw.sha256){
-    return ['/firmware/sha256 applies to a firmware file (url) only — pin a Docker image by digest instead (image@sha256:...)'];
-  }
-  return [];
+  return errors;
 }
 
 module.exports = { validateJobSpec };
