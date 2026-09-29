@@ -16,10 +16,12 @@
 'use strict';
 
 const Ajv = require('ajv'),
-  addFormats = require('ajv-formats'),
-  { DOCKER_IMAGE_PATTERN } = require('./job-spec.schema');
+  addFormats = require('ajv-formats');
 
-const MAX_DEVICES = 8,
+// The config file's key for an HW Client's devices. Older files call it
+// `hw`, still read (and rewritten as `hw-devices` on the next save).
+const HW_DEVICES = 'hw-devices',
+  MAX_DEVICES = 8,
   device = (extra = {}) => ({
     type: 'object',
     additionalProperties: false,
@@ -47,64 +49,53 @@ const MAX_DEVICES = 8,
       usbs: list(device())
     }
   },
-  swSchema = {
-    type: 'object',
-    additionalProperties: false,
-    properties: {
-      image: { type: 'string', maxLength: 255, pattern: DOCKER_IMAGE_PATTERN },
-      registry: { type: 'string', pattern: '^(https?://)?[A-Za-z0-9.-]+(:[0-9]+)?/?$', maxLength: 255 },
-      allowDockerHub: { type: 'boolean' },
-      allowJobImages: { type: 'boolean' },
-      cpus: { type: 'number', exclusiveMinimum: 0, maximum: 256 },
-      memory: { type: 'string', pattern: '^[0-9]+[kmgKMG]?$' },
-      cmd: { type: 'array', maxItems: 32, items: { type: 'string', maxLength: 1024 } }
-    }
-  },
+  // An SW Client has no settings of its own: its editable section is empty.
+  swSchema = { type: 'object', additionalProperties: false, properties: {} },
   ajv = new Ajv({ allErrors: true, strict: false }),
   validators = { hw: null, sw: null };
 addFormats(ajv);
 validators.hw = ajv.compile(hwSchema);
 validators.sw = ajv.compile(swSchema);
 
-// Fields of a section that never leave the Client (secrets) — kept on the
-// Client when a dashboard edit is applied, never reported or accepted.
-const PRIVATE_FIELDS = { hw: [], sw: ['registryAuth'] };
+// The hw-devices section of a config file (or its older name, `hw`).
+function hwDevicesOf(file){
+  return file?.[HW_DEVICES] !== undefined ? file[HW_DEVICES] : file?.hw;
+}
 
-// An hw section without the power control Clients no longer have
-// (hw.relays, hw.power — relay boards and uhubctl), so a config file that
-// still has them reports, saves and imports without them. Returns
+// An hw-devices section without the power control Clients no longer have
+// (relays, power — relay boards and uhubctl), so a config file that still
+// has them reports, saves and imports without them. Returns
 // { section, dropped } (dropped: the names left out).
 function withoutPowerControl(hw){
   if (!hw || typeof hw !== 'object' || Array.isArray(hw)){
     return { section: hw, dropped: [] };
   }
   const { relays, power, ...section } = hw;
-  return { section, dropped: [...(relays !== undefined ? ['hw.relays'] : []), ...(power !== undefined ? ['hw.power'] : [])] };
+  return {
+    section,
+    dropped: [...(relays !== undefined ? [`${HW_DEVICES}.relays`] : []), ...(power !== undefined ? [`${HW_DEVICES}.power`] : [])]
+  };
 }
 
-// { valid, errors } for a Client's `type` ('hw' | 'sw') config section.
+// { valid, errors } for a Client's editable section: an HW Client's
+// hw-devices; an SW Client's is always empty ({}).
 function validateClientConfig(type, section){
   const validate = validators[type];
   if (!validate){
     return { valid: false, errors: [`unknown Client type "${type}"`] };
   }
   if (!section || typeof section !== 'object' || Array.isArray(section)){
-    return { valid: false, errors: [`the ${type} section must be an object`] };
+    return { valid: false, errors: [`the ${type === 'hw' ? HW_DEVICES : type} section must be an object`] };
   }
   const valid = validate(section);
   return {
     valid,
-    errors: valid ? [] : validate.errors.map((e) => `${type}${e.instancePath.replace(/\//g, '.')} ${e.message}`)
+    errors: valid
+      ? []
+      : validate.errors.map((e) => (type === 'sw'
+        ? 'an SW Client has no settings of its own (the sw section is gone)'
+        : `${HW_DEVICES}${e.instancePath.replace(/\//g, '.')} ${e.message}`))
   };
-}
-
-// The editable view of a section: without its private fields.
-function publicClientConfig(type, section){
-  const out = { ...(section || {}) };
-  for (const key of PRIVATE_FIELDS[type] || []){
-    delete out[key];
-  }
-  return out;
 }
 
 // ── The whole config file: dashboard Export / Import (README §10) ──────────
@@ -113,8 +104,7 @@ function publicClientConfig(type, section){
 // Coordinator, and its name (the dashboard renames it instead).
 const IMPORT_IGNORED_FIELDS = ['joinKey', 'coordinatorUrl', 'name'],
   // Top-level fields a config file may carry, checked on import (anything
-  // else is passed through as is). Nested secrets (artifactory.token,
-  // sw.registryAuth) never leave the Client and are never imported.
+  // else is passed through as is).
   strings = { type: 'array', maxItems: 64, items: { type: 'string', minLength: 1, maxLength: 1024 } },
   fileSchema = {
     type: 'object',
@@ -123,9 +113,7 @@ const IMPORT_IGNORED_FIELDS = ['joinKey', 'coordinatorUrl', 'name'],
       labels: strings,
       groups: strings,
       heartbeatIntervalSec: { type: 'integer', minimum: 1, maximum: 3600 },
-      longPollWaitSec: { type: 'integer', minimum: 1, maximum: 3600 },
-      sources: { type: 'object', properties: { allowedPrefixes: strings } },
-      artifactory: { type: 'object', properties: { allowedArtifactPrefixes: strings } }
+      longPollWaitSec: { type: 'integer', minimum: 1, maximum: 3600 }
     }
   },
   validateFile = ajv.compile(fileSchema),
@@ -134,26 +122,31 @@ const IMPORT_IGNORED_FIELDS = ['joinKey', 'coordinatorUrl', 'name'],
   // Client's identity (clientId) and every file or directory path (tokenFile,
   // socketPath, workDir, varDir, …): taken from another Client they'd share
   // its token, socket or state.
-  isHostBound = (key) => key === 'clientId' || /(File|Path|Dir)$/.test(key);
+  isHostBound = (key) => key === 'clientId' || /(File|Path|Dir)$/.test(key),
 
-// A config file with the Client-only secrets removed — what a Client
-// reports for Export, and what an import may carry.
+  // Sections older Clients had and current ones ignore — dropped from
+  // Export (`artifactory` held a token, `sw` a registry password) and
+  // listed as ignored on Import.
+  LEGACY_SECTIONS = ['artifactory', 'sources', 'sw'];
+
+// A config file as it's shared (Export, and what an Import may carry): the
+// legacy sections dropped, an older `hw` section under its new name.
 function shareableClientConfigFile(file){
-  const out = JSON.parse(JSON.stringify(file || {}));
-  if (out.artifactory && typeof out.artifactory === 'object'){
-    delete out.artifactory.token;
+  const out = JSON.parse(JSON.stringify(file || {})),
+    hw = hwDevicesOf(out);
+  for (const key of [...LEGACY_SECTIONS, 'hw']){
+    delete out[key];
   }
-  for (const [type, keys]of Object.entries(PRIVATE_FIELDS)){
-    for (const key of out[type] && typeof out[type] === 'object' ? keys : []){
-      delete out[type][key];
-    }
+  if (hw !== undefined){
+    out[HW_DEVICES] = hw;
   }
   return out;
 }
 
 // Checks an imported config file for a `type` Client and splits it into
-// what gets applied: { valid, errors, section (its hw/sw section, or null),
-// fields (the other top-level fields), ignored (names left out) }.
+// what gets applied: { valid, errors, section (an HW Client's hw-devices, or
+// null; an SW Client's is always {}), fields (the other top-level fields),
+// ignored (names left out) }.
 function importClientConfigFile(type, file){
   const fail = (...errors) => ({ valid: false, errors, section: null, fields: {}, ignored: [] });
   if (!file || typeof file !== 'object' || Array.isArray(file)){
@@ -169,45 +162,36 @@ function importClientConfigFile(type, file){
     ignored = [],
     fields = {},
     errors = [];
-  if (shared.hw !== undefined){
-    const { section: hw, dropped } = withoutPowerControl(shared.hw);
-    shared.hw = hw;
-    ignored.push(...dropped);
+  ignored.push(...LEGACY_SECTIONS.filter((key) => file[key] !== undefined));
+  let section = type === 'sw' ? {} : null;
+  if (shared[HW_DEVICES] !== undefined){
+    if (type === 'hw'){
+      const { section: hw, dropped } = withoutPowerControl(shared[HW_DEVICES]);
+      section = hw;
+      ignored.push(...dropped);
+      errors.push(...validateClientConfig('hw', section).errors);
+    }
+    else {
+      ignored.push(HW_DEVICES); // an SW Client has no devices
+    }
   }
   for (const [key, value]of Object.entries(shared)){
     if (IMPORT_IGNORED_FIELDS.includes(key) || isHostBound(key)){
       ignored.push(key);
     }
-    else if (key === 'artifactory'){
-      // Its tokenFile is a path on the Client's host: kept from there.
-      const { tokenFile, ...rest } = value;
-      if (tokenFile !== undefined){
-        ignored.push('artifactory.tokenFile');
-      }
-      fields.artifactory = rest;
-    }
-    else if (key !== 'type' && key !== type){
+    else if (key !== 'type' && key !== HW_DEVICES){
       fields[key] = value;
     }
-  }
-  // Both sections are checked: the other type's one is kept in the file too.
-  const section = shared[type] === undefined ? null : shared[type],
-    other = type === 'hw' ? 'sw' : 'hw';
-  if (section !== null){
-    errors.push(...validateClientConfig(type, section).errors);
-  }
-  if (fields[other] !== undefined){
-    errors.push(...validateClientConfig(other, fields[other]).errors);
   }
   return { valid: errors.length === 0, errors, section, fields, ignored };
 }
 
 module.exports = {
   validateClientConfig,
-  publicClientConfig,
   shareableClientConfigFile,
   importClientConfigFile,
   withoutPowerControl,
-  CLIENT_CONFIG_PRIVATE_FIELDS: PRIVATE_FIELDS,
+  hwDevicesOf,
+  HW_DEVICES_SECTION: HW_DEVICES,
   CLIENT_CONFIG_IMPORT_IGNORED: IMPORT_IGNORED_FIELDS
 };
