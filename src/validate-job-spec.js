@@ -15,7 +15,7 @@
 
 const Ajv = require('ajv'),
   addFormats = require('ajv-formats'),
-  { jobSpecSchema } = require('./job-spec.schema'),
+  { jobSpecSchema, DOCKER_LOGIN_ENV } = require('./job-spec.schema'),
   { splitArgs } = require('./split-args');
 
 const ajv = new Ajv({ useDefaults: true, allErrors: true, strict: false });
@@ -52,7 +52,11 @@ function legacyShapeError(spec){
 // Git transports a Client may fetch sources over. Never `ext::` (runs a
 // command), `file://` or a local path: the Client also sets
 // GIT_ALLOW_PROTOCOL to the same list (downloader.js).
-const GIT_URL = /^(?:(?:https?|ssh|git):\/\/[^\s]+|[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:[^\s]+)$/;
+const GIT_URL = /^(?:(?:https?|ssh|git):\/\/[^\s]+|[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:[^\s]+)$/,
+
+  // Job env names the Client sets itself for a job's commands (besides
+  // THUB_*): git's safety settings, and the job's own Docker config dir.
+  RESERVED_ENV = ['GIT_TERMINAL_PROMPT', 'GIT_ALLOW_PROTOCOL', 'DOCKER_CONFIG'];
 
 // Rules across fields, spelled out here rather than as schema if/then,
 // whose errors ("must match a schema in then") say little.
@@ -63,6 +67,16 @@ function crossFieldErrors(spec){
   }
   if (spec.git && !GIT_URL.test(spec.git.url || '')){
     errors.push('/git/url must be an https://, http://, ssh:// or git:// URL, or user@host:path');
+  }
+  const envNames = Object.keys(spec.env && typeof spec.env === 'object' ? spec.env : {}),
+    reserved = envNames.filter((n) => /^THUB_/.test(n) || RESERVED_ENV.includes(n)),
+    login = DOCKER_LOGIN_ENV.filter((n) => envNames.includes(n));
+  if (reserved.length){
+    errors.push(`/env ${reserved.join(', ')}: set by the Client itself (THUB_*, ${RESERVED_ENV.join(', ')}) — use other names`);
+  }
+  if (login.length && login.length < DOCKER_LOGIN_ENV.length){
+    errors.push(`/env a Docker registry login needs all of ${DOCKER_LOGIN_ENV.join(', ')} — missing ` +
+      DOCKER_LOGIN_ENV.filter((n) => !login.includes(n)).join(', '));
   }
   if (spec.git?.options){
     try {
@@ -75,4 +89,12 @@ function crossFieldErrors(spec){
   return errors;
 }
 
-module.exports = { validateJobSpec };
+// A job's `env` with its values hidden — for anything but the Client that
+// runs the job (Agent API, logs, dry-run output).
+function maskEnv(env){
+  return env && typeof env === 'object' ? Object.fromEntries(Object.keys(env).map((k) => [k, MASKED])) : env;
+}
+
+const MASKED = '***';
+
+module.exports = { validateJobSpec, maskEnv, DOCKER_LOGIN_ENV, JOB_ENV_MASK: MASKED };

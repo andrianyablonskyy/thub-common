@@ -15,7 +15,8 @@
 
 const test = require('node:test'),
   assert = require('node:assert/strict'),
-  { validateJobSpec } = require('../src/validate-job-spec');
+  { validateJobSpec, maskEnv } = require('../src/validate-job-spec'),
+  { parseEnvList } = require('../src/env-list');
 
 const minimal = (extra = {}) => ({ target: { type: 'hw' }, command: './ci/run.sh', ...extra });
 
@@ -93,4 +94,26 @@ test('git.options: a quoted options string; unbalanced quotes are refused', () =
   assert.equal(check('-c core.sshCommand="ssh -i ~/.ssh/k -p 2222"').valid, true);
   assert.match(check('-c "open').errors.join(), /git\/options can't be split.*unterminated/);
   assert.equal(check('x'.repeat(1025)).valid, false);
+});
+
+test('env: NAME=string pairs; the Client\'s own names refused; a Docker login needs all three DOCKER_* variables', () => {
+  const check = (env) => validateJobSpec({ target: { type: 'sw' }, command: 'x', env });
+  assert.equal(check({ DOCKER_REGISTRY: 'registry.lab:5000', DOCKER_USERNAME: 'ci', DOCKER_PASSWORD: 'p,w=d', FOO_1: '' }).valid, true);
+  assert.equal(check({ '1BAD': 'x' }).valid, false);
+  assert.equal(check({ A: 1 }).valid, false);
+  assert.match(check({ THUB_JOB_ID: 'x', DOCKER_CONFIG: '/tmp' }).errors.join(), /THUB_JOB_ID, DOCKER_CONFIG: set by the Client itself/);
+  assert.match(check({ DOCKER_USERNAME: 'ci', DOCKER_PASSWORD: 'p' }).errors.join(), /needs all of .* missing DOCKER_REGISTRY/);
+});
+
+test('maskEnv: names kept, values hidden', () => {
+  assert.deepEqual(maskEnv({ A: '1', DOCKER_PASSWORD: 'secret' }), { A: '***', DOCKER_PASSWORD: '***' });
+  assert.equal(maskEnv(undefined), undefined);
+});
+
+test('parseEnvList (--env): comma-separated, values may hold commas, a bare NAME comes from the shell', () => {
+  assert.deepEqual(parseEnvList(['A=1,B=x,y', 'C=a=b'], {}), { A: '1', B: 'x,y', C: 'a=b' });
+  assert.deepEqual(parseEnvList(['DOCKER_PASSWORD'], { DOCKER_PASSWORD: 's3cret' }), { DOCKER_PASSWORD: 's3cret' });
+  assert.deepEqual(parseEnvList(['EMPTY='], {}), { EMPTY: '' });
+  assert.throws(() => parseEnvList(['NOPE'], {}), /--env NOPE: not set in this shell/);
+  assert.throws(() => parseEnvList(['1X=2'], {}), /expected NAME=value/);
 });

@@ -21,5 +21,6 @@ module.exports = {
   ...require('./cron'),
   ...require('./client-config'),
   ...require('./split-args'),
+  ...require('./env-list'),
   ApiClient: require('./api-client').ApiClient
 };
