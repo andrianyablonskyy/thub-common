@@ -15,7 +15,7 @@
 
 const test = require('node:test'),
   assert = require('node:assert/strict'),
-  { validateClientConfig, publicClientConfig } = require('../src/client-config');
+  { validateClientConfig, publicClientConfig, importClientConfigFile, shareableClientConfigFile } = require('../src/client-config');
 
 test('hw: device lists, relays and power validate; bad entries are named', () => {
   const ok = validateClientConfig('hw', {
@@ -48,4 +48,30 @@ test('sw: image, registry, limits, flags and cmd; secrets are not editable', () 
   assert.match(validateClientConfig('sw', { registryAuth: { username: 'u' } }).errors.join(), /additional properties/);
   assert.deepEqual(publicClientConfig('sw', { image: 'x', registryAuth: { password: 'p' } }), { image: 'x' });
   assert.match(validateClientConfig('xx', {}).errors.join(), /unknown Client type/);
+});
+
+test('config file import: joinKey, coordinatorUrl, name, the Client\'s id, paths and secrets ignored; sections checked', () => {
+  const file = {
+      coordinatorUrl: 'https://other', name: 'dut9', joinKey: 'k', clientId: 'c-9', type: 'sw',
+      labels: ['board:x'], groups: ['g1'], heartbeatIntervalSec: 5, tokenFile: '/var/lib/thub/dut9.token', workDir: '/w',
+      artifactory: { token: 'secret', tokenFile: '/etc/thub/a.token', allowedArtifactPrefixes: ['https://art/'] },
+      sources: { allowedPrefixes: ['*'] },
+      sw: { image: 'emu:1', registryAuth: { password: 'x' } },
+      hw: { stlinks: [{ index: 1 }] }
+    },
+    { valid, section, fields, ignored } = importClientConfigFile('sw', file);
+  assert.equal(valid, true);
+  assert.deepEqual(section, { image: 'emu:1' });
+  assert.deepEqual(fields, {
+    labels: ['board:x'], groups: ['g1'], heartbeatIntervalSec: 5,
+    artifactory: { allowedArtifactPrefixes: ['https://art/'] }, sources: { allowedPrefixes: ['*'] }, hw: { stlinks: [{ index: 1 }] }
+  });
+  assert.deepEqual(ignored.sort(), ['artifactory.tokenFile', 'clientId', 'coordinatorUrl', 'joinKey', 'name', 'tokenFile', 'workDir']);
+
+  assert.match(importClientConfigFile('hw', file).errors.join(), /SW Client config, but this is a HW Client/);
+  assert.match(importClientConfigFile('sw', { sw: { memory: 'lots' } }).errors.join(), /sw\.memory/);
+  assert.match(importClientConfigFile('sw', { labels: 'x' }).errors.join(), /labels must be array/);
+  assert.equal(importClientConfigFile('sw', []).valid, false);
+  assert.deepEqual(shareableClientConfigFile(file).artifactory, { tokenFile: '/etc/thub/a.token', allowedArtifactPrefixes: ['https://art/'] });
+  assert.deepEqual(shareableClientConfigFile(file).sw, { image: 'emu:1' });
 });
