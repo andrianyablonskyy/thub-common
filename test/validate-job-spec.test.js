@@ -96,13 +96,14 @@ test('git.options: a quoted options string; unbalanced quotes are refused', () =
   assert.equal(check('x'.repeat(1025)).valid, false);
 });
 
-test('env: NAME=string pairs; the Client\'s own names refused; a Docker login needs all three DOCKER_* variables', () => {
-  const check = (env) => validateJobSpec({ target: { type: 'sw' }, command: 'x', env });
-  assert.equal(check({ DOCKER_REGISTRY: 'registry.lab:5000', DOCKER_USERNAME: 'ci', DOCKER_PASSWORD: 'p,w=d', FOO_1: '' }).valid, true);
+test('env: any NAME=string pairs — no name is special, except the Client\'s own', () => {
+  const check = (env) => validateJobSpec({ target: { type: 'hw' }, command: 'x', env });
+  // Any subset of any names: nothing expects DOCKER_* to come together.
+  assert.equal(check({ DOCKER_REGISTRY: 'registry.lab:5000', DOCKER_USER: 'ci', DOCKER_PASSWORD: 'p,w=d', DOCKER_CONFIG: '/tmp/d', FOO_1: '' }).valid, true);
+  assert.equal(check({ DOCKER_PASSWORD: 'p' }).valid, true);
   assert.equal(check({ '1BAD': 'x' }).valid, false);
   assert.equal(check({ A: 1 }).valid, false);
-  assert.match(check({ THUB_JOB_ID: 'x', DOCKER_CONFIG: '/tmp' }).errors.join(), /THUB_JOB_ID, DOCKER_CONFIG: set by the Client itself/);
-  assert.match(check({ DOCKER_USERNAME: 'ci', DOCKER_PASSWORD: 'p' }).errors.join(), /needs all of .* missing DOCKER_REGISTRY/);
+  assert.match(check({ THUB_JOB_ID: 'x', GIT_ALLOW_PROTOCOL: 'ext' }).errors.join(), /THUB_JOB_ID, GIT_ALLOW_PROTOCOL: set by the Client itself/);
 });
 
 test('maskEnv: names kept, values hidden', () => {

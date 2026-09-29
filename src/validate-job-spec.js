@@ -15,7 +15,7 @@
 
 const Ajv = require('ajv'),
   addFormats = require('ajv-formats'),
-  { jobSpecSchema, DOCKER_LOGIN_ENV } = require('./job-spec.schema'),
+  { jobSpecSchema } = require('./job-spec.schema'),
   { splitArgs } = require('./split-args');
 
 const ajv = new Ajv({ useDefaults: true, allErrors: true, strict: false });
@@ -55,8 +55,8 @@ function legacyShapeError(spec){
 const GIT_URL = /^(?:(?:https?|ssh|git):\/\/[^\s]+|[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:[^\s]+)$/,
 
   // Job env names the Client sets itself for a job's commands (besides
-  // THUB_*): git's safety settings, and the job's own Docker config dir.
-  RESERVED_ENV = ['GIT_TERMINAL_PROMPT', 'GIT_ALLOW_PROTOCOL', 'DOCKER_CONFIG'];
+  // THUB_*): git's safety settings.
+  RESERVED_ENV = ['GIT_TERMINAL_PROMPT', 'GIT_ALLOW_PROTOCOL'];
 
 // Rules across fields, spelled out here rather than as schema if/then,
 // whose errors ("must match a schema in then") say little.
@@ -69,14 +69,9 @@ function crossFieldErrors(spec){
     errors.push('/git/url must be an https://, http://, ssh:// or git:// URL, or user@host:path');
   }
   const envNames = Object.keys(spec.env && typeof spec.env === 'object' ? spec.env : {}),
-    reserved = envNames.filter((n) => /^THUB_/.test(n) || RESERVED_ENV.includes(n)),
-    login = DOCKER_LOGIN_ENV.filter((n) => envNames.includes(n));
+    reserved = envNames.filter((n) => /^THUB_/.test(n) || RESERVED_ENV.includes(n));
   if (reserved.length){
     errors.push(`/env ${reserved.join(', ')}: set by the Client itself (THUB_*, ${RESERVED_ENV.join(', ')}) — use other names`);
-  }
-  if (login.length && login.length < DOCKER_LOGIN_ENV.length){
-    errors.push(`/env a Docker registry login needs all of ${DOCKER_LOGIN_ENV.join(', ')} — missing ` +
-      DOCKER_LOGIN_ENV.filter((n) => !login.includes(n)).join(', '));
   }
   if (spec.git?.options){
     try {
@@ -97,4 +92,4 @@ function maskEnv(env){
 
 const MASKED = '***';
 
-module.exports = { validateJobSpec, maskEnv, DOCKER_LOGIN_ENV, JOB_ENV_MASK: MASKED };
+module.exports = { validateJobSpec, maskEnv, JOB_ENV_MASK: MASKED };

@@ -102,11 +102,10 @@ const DOCKER_IMAGE_PATTERN =
         }
       },
       // Environment variables (`--env NAME=value`) the Client sets for every
-      // command it runs for the job — git, docker login, the job's command.
-      // DOCKER_REGISTRY + DOCKER_USERNAME + DOCKER_PASSWORD: the Client logs in
-      // to that registry first (README §8.1). Values are secrets as far as
-      // the Coordinator is concerned: masked in the Agent API and dropped
-      // from its database once the job ends.
+      // command it runs for the job — git and the job's command. No name
+      // means anything special. Values are secrets as far as the Coordinator
+      // is concerned: masked in the Agent API and dropped from its database
+      // once the job ends.
       env: {
         type: 'object',
         maxProperties: 64,
@@ -128,9 +127,6 @@ const DOCKER_IMAGE_PATTERN =
       // see README §7.1 "Dry-run the pipeline".
       dryRun: { type: 'boolean', default: false }
     }
-  },
+  };
 
-  // The job env variables the Client logs in to a Docker registry with.
-  DOCKER_LOGIN_ENV = ['DOCKER_REGISTRY', 'DOCKER_USERNAME', 'DOCKER_PASSWORD'];
-
-module.exports = { jobSpecSchema, DOCKER_IMAGE_PATTERN, ENV_NAME_PATTERN, DOCKER_LOGIN_ENV };
+module.exports = { jobSpecSchema, DOCKER_IMAGE_PATTERN, ENV_NAME_PATTERN };
