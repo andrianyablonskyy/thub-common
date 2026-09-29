@@ -23,6 +23,9 @@ const DOCKER_IMAGE_PATTERN =
   // no spaces or the characters git forbids, not ending in "/", ".lock", ".".
   GIT_REF_PATTERN = '^(?![-/])(?!.*\\.\\.)(?!.*//)(?!.*(/|\\.lock|\\.)$)[A-Za-z0-9._/+@-]+$',
 
+  // An environment variable name a job may set (`--env NAME=value`).
+  ENV_NAME_PATTERN = '^[A-Za-z_][A-Za-z0-9_]*$',
+
   // Matches the job spec shape documented in README.md §4.3. A task is:
   // optionally files to download and/or a git checkout, optionally (SW only)
   // a Docker image to run as the DUT, and — always — the shell command that
@@ -98,6 +101,18 @@ const DOCKER_IMAGE_PATTERN =
           options: { type: 'string', minLength: 1, maxLength: 1024 }
         }
       },
+      // Environment variables (`--env NAME=value`) the Client sets for every
+      // command it runs for the job — git, docker login, the job's command.
+      // DOCKER_REGISTRY + DOCKER_USERNAME + DOCKER_PASSWORD: the Client logs in
+      // to that registry first (README §8.1). Values are secrets as far as
+      // the Coordinator is concerned: masked in the Agent API and dropped
+      // from its database once the job ends.
+      env: {
+        type: 'object',
+        maxProperties: 64,
+        propertyNames: { pattern: ENV_NAME_PATTERN, maxLength: 128 },
+        additionalProperties: { type: 'string', maxLength: 8192 }
+      },
       timeoutSec: { type: 'integer', minimum: 1, default: 1800 },
       priority: { type: 'integer', minimum: 0, maximum: 100, default: 50 },
       // Set by the Coordinator from the agent token's kind; any value an
@@ -113,6 +128,9 @@ const DOCKER_IMAGE_PATTERN =
       // see README §7.1 "Dry-run the pipeline".
       dryRun: { type: 'boolean', default: false }
     }
-  };
+  },
 
-module.exports = { jobSpecSchema, DOCKER_IMAGE_PATTERN };
+  // The job env variables the Client logs in to a Docker registry with.
+  DOCKER_LOGIN_ENV = ['DOCKER_REGISTRY', 'DOCKER_USERNAME', 'DOCKER_PASSWORD'];
+
+module.exports = { jobSpecSchema, DOCKER_IMAGE_PATTERN, ENV_NAME_PATTERN, DOCKER_LOGIN_ENV };
