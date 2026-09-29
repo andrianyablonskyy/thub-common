@@ -18,19 +18,20 @@
 const DOCKER_IMAGE_PATTERN =
     '^[A-Za-z0-9][A-Za-z0-9.-]*(:[0-9]+)?(/[a-z0-9]+((\\.|_|__|-+)[a-z0-9]+)*)*(:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})?(@sha256:[a-f0-9]{64})?$',
 
-  // A git branch or tag name: no leading "-" or "/", no "..", no spaces or
-  // the characters git forbids (~^:?*[\), not ending in "/", ".lock" or ".".
+  // A git ref to check out — a branch, a tag or a commit (hex) — as git
+  // allows them: no leading "-" (never taken for an option) or "/", no "..",
+  // no spaces or the characters git forbids, not ending in "/", ".lock", ".".
   GIT_REF_PATTERN = '^(?![-/])(?!.*\\.\\.)(?!.*//)(?!.*(/|\\.lock|\\.)$)[A-Za-z0-9._/+@-]+$',
 
-  // Matches the job spec shape documented in README.md §4.3.
-  // Deliberately has no field for shell commands: the Client only ever
-  // runs the fixed entry point from the downloaded test package — the
-  // one exception is firmware.image, which a Client must opt in to.
+  // Matches the job spec shape documented in README.md §4.3. A task is:
+  // optionally files to download and/or a git checkout, optionally (SW only)
+  // a Docker image to run as the DUT, and — always — the shell command that
+  // is its entry point, run on the Client in the checkout / work directory.
   jobSpecSchema = {
     $id: 'https://thub.example.com/schemas/job-spec.json',
     type: 'object',
     additionalProperties: false,
-    required: ['target', 'tests'],
+    required: ['target', 'command'],
     properties: {
       target: {
         type: 'object',
@@ -56,47 +57,39 @@ const DOCKER_IMAGE_PATTERN =
           client: { type: 'string', minLength: 1 }
         }
       },
-      // Exactly one of `url` (a firmware file the Client downloads — HW and
-      // SW) or `image` (a Docker image an SW Client runs instead of its own
-      // sw.image, if it allows that: sw.allowJobImages). The combinations are
-      // checked in validate-job-spec.js, for readable errors.
-      firmware: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          url: { type: 'string', format: 'uri' },
-          image: { type: 'string', maxLength: 255, pattern: DOCKER_IMAGE_PATTERN },
-          sha256: { type: 'string', pattern: '^[a-f0-9]{64}$' },
-          flashAddress: { type: 'string' }
-        }
+      // The task's entry point (`thub run --command`): a shell command the
+      // Client runs with `sh -c`, `args` as "$@" (`--arg`, repeatable).
+      command: { type: 'string', minLength: 1, maxLength: 4096 },
+      args: { type: 'array', items: { type: 'string' }, default: [] },
+      // Passed to the command as THUB_SUITE (`--suite`).
+      suite: { type: 'string', default: 'default' },
+      // Files the Client downloads into the task's work directory before
+      // running the command (`--download-file`, repeatable).
+      downloads: {
+        type: 'array',
+        maxItems: 32,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['url'],
+          properties: { url: { type: 'string', format: 'uri' } }
+        },
+        default: []
       },
-      // Where the tests come from — exactly one of `url` (an archive: tar in
-      // any compression, or zip) or `git` (a repository at a branch, tag or
-      // commit; default: its default branch) — and how they start: `command`
-      // (a shell command run in the sources, if the Client allows it:
-      // allowJobCommands), else the package's own run-tests.sh. Combinations
-      // are checked in validate-job-spec.js.
-      tests: {
+      // A Docker image an SW Client runs as the DUT instead of its own
+      // sw.image, if it allows that (sw.allowJobImages) — `--docker-image`.
+      image: { type: 'string', maxLength: 255, pattern: DOCKER_IMAGE_PATTERN },
+      // A repository the Client clones before running the command — at `ref`
+      // (branch, tag or commit; default: the default branch), `depth` commits
+      // deep (0 = full history). `--git-repo <url> [ref] [--depth <n>]`.
+      git: {
         type: 'object',
         additionalProperties: false,
+        required: ['url'],
         properties: {
-          url: { type: 'string', format: 'uri' },
-          git: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['url'],
-            properties: {
-              url: { type: 'string', minLength: 1, maxLength: 2048 },
-              // Ref names as git allows them — never starting with "-",
-              // so none can be taken for a git option.
-              branch: { type: 'string', maxLength: 255, pattern: GIT_REF_PATTERN },
-              tag: { type: 'string', maxLength: 255, pattern: GIT_REF_PATTERN },
-              commit: { type: 'string', pattern: '^[0-9a-fA-F]{7,40}$' }
-            }
-          },
-          command: { type: 'string', minLength: 1, maxLength: 4096 },
-          suite: { type: 'string', default: 'default' },
-          args: { type: 'array', items: { type: 'string' }, default: [] }
+          url: { type: 'string', minLength: 1, maxLength: 2048 },
+          ref: { type: 'string', maxLength: 255, pattern: GIT_REF_PATTERN },
+          depth: { type: 'integer', minimum: 0, maximum: 100000, default: 1 }
         }
       },
       timeoutSec: { type: 'integer', minimum: 1, default: 1800 },
