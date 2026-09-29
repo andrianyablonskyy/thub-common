@@ -89,7 +89,13 @@ const DOCKER_IMAGE_PATTERN =
         properties: {
           url: { type: 'string', minLength: 1, maxLength: 2048 },
           ref: { type: 'string', maxLength: 255, pattern: GIT_REF_PATTERN },
-          depth: { type: 'integer', minimum: 0, maximum: 100000, default: 1 }
+          depth: { type: 'integer', minimum: 0, maximum: 100000, default: 1 },
+          // Extra git options (`--git-options`), shell-quoted, inserted
+          // between `git` and its subcommand on the Client — e.g.
+          // -c core.sshCommand="ssh -i ~/.ssh/lab_key -p 2222". Stored with
+          // the job and visible like the rest of it: reference key files on
+          // the Client rather than putting secrets here.
+          options: { type: 'string', minLength: 1, maxLength: 1024 }
         }
       },
       timeoutSec: { type: 'integer', minimum: 1, default: 1800 },

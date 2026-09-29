@@ -87,3 +87,10 @@ test('git: repo URL, optional ref (branch/tag/commit) and depth (default 1); uns
   }
   assert.equal(check({ url: 'https://x/r.git', depth: -1 }).valid, false);
 });
+
+test('git.options: a quoted options string; unbalanced quotes are refused', () => {
+  const check = (options) => validateJobSpec({ target: { type: 'hw' }, command: 'x', git: { url: 'https://x/r.git', options } });
+  assert.equal(check('-c core.sshCommand="ssh -i ~/.ssh/k -p 2222"').valid, true);
+  assert.match(check('-c "open').errors.join(), /git\/options can't be split.*unterminated/);
+  assert.equal(check('x'.repeat(1025)).valid, false);
+});

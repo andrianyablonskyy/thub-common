@@ -15,7 +15,8 @@
 
 const Ajv = require('ajv'),
   addFormats = require('ajv-formats'),
-  { jobSpecSchema } = require('./job-spec.schema');
+  { jobSpecSchema } = require('./job-spec.schema'),
+  { splitArgs } = require('./split-args');
 
 const ajv = new Ajv({ useDefaults: true, allErrors: true, strict: false });
 addFormats(ajv);
@@ -62,6 +63,14 @@ function crossFieldErrors(spec){
   }
   if (spec.git && !GIT_URL.test(spec.git.url || '')){
     errors.push('/git/url must be an https://, http://, ssh:// or git:// URL, or user@host:path');
+  }
+  if (spec.git?.options){
+    try {
+      splitArgs(spec.git.options);
+    }
+    catch (err){
+      errors.push(`/git/options can't be split into arguments: ${err.message}`);
+    }
   }
   return errors;
 }
