@@ -19,5 +19,6 @@ module.exports = {
   ...require('./updates'),
   ...require('./datetime'),
   ...require('./cron'),
+  ...require('./client-config'),
   ApiClient: require('./api-client').ApiClient
 };
