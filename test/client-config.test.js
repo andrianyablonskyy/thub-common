@@ -15,9 +15,9 @@
 
 const test = require('node:test'),
   assert = require('node:assert/strict'),
-  { validateClientConfig, publicClientConfig, importClientConfigFile, shareableClientConfigFile, withoutPowerControl } = require('../src/client-config');
+  { validateClientConfig, importClientConfigFile, shareableClientConfigFile, withoutPowerControl, hwDevicesOf } = require('../src/client-config');
 
-test('hw: device lists validate; bad entries and power control (relays, power) are refused', () => {
+test('hw-devices: device lists validate; bad entries and power control (relays, power) are refused', () => {
   const ok = validateClientConfig('hw', {
     stlinks: [{ index: 1, serial: '066DFF485457725187092834', devpath: '3.3.4.3.1' }, { serial: 'ABC123' }],
     uarts: [{ path: '/dev/thub/dut1-uart', baudRate: 115200, devpath: '3.3.3.2', vendorId: '0403', subsystem: 'tty' }],
@@ -26,7 +26,7 @@ test('hw: device lists validate; bad entries and power control (relays, power) a
   assert.equal(ok.valid, true, ok.errors.join('; '));
 
   const bad = (section, re) => assert.match(validateClientConfig('hw', section).errors.join(), re);
-  bad({ uarts: [{ path: '/tmp/x' }] }, /hw\.uarts\.0\.path must match/);
+  bad({ uarts: [{ path: '/tmp/x' }] }, /hw-devices\.uarts\.0\.path must match/);
   bad({ uarts: [{ baudRate: 9600 }] }, /must match a schema in anyOf/); // neither index nor path
   bad({ stlinks: Array.from({ length: 9 }, (_, i) => ({ index: (i % 8) + 1 })) }, /must NOT have more than 8 items/);
   bad({ relays: [{ channel: 0 }] }, /must NOT have additional properties/);
@@ -34,53 +34,55 @@ test('hw: device lists validate; bad entries and power control (relays, power) a
   bad({ usbs: [{ index: 1, devpath: '1.1", RUN+="x' }] }, /devpath must match/);
 });
 
-test('sw: image, registry, limits, flags and cmd; secrets are not editable', () => {
-  const ok = validateClientConfig('sw', {
-    image: 'dut-emulator:2026.08', registry: 'registry.lab:5000', allowDockerHub: true, allowJobImages: false, cpus: 1.5, memory: '512m',
-    cmd: ['--firmware', '/downloads/app.bin']
-  });
-  assert.equal(ok.valid, true, ok.errors.join('; '));
-  assert.match(validateClientConfig('sw', { memory: 'lots' }).errors.join(), /memory must match/);
-  assert.match(validateClientConfig('sw', { cpus: 0 }).errors.join(), /cpus must be > 0/);
-  assert.match(validateClientConfig('sw', { registryAuth: { username: 'u' } }).errors.join(), /additional properties/);
-  assert.deepEqual(publicClientConfig('sw', { image: 'x', registryAuth: { password: 'p' } }), { image: 'x' });
+test('sw: an SW Client has no settings — only an empty section validates', () => {
+  assert.equal(validateClientConfig('sw', {}).valid, true);
+  assert.match(validateClientConfig('sw', { image: 'emu:1' }).errors.join(), /SW Client has no settings of its own/);
   assert.match(validateClientConfig('xx', {}).errors.join(), /unknown Client type/);
 });
 
-test('config file import: joinKey, coordinatorUrl, name, the Client\'s id, paths and secrets ignored; sections checked', () => {
+test('hw-devices is read from older files\' `hw` too, and shared under its new name', () => {
+  assert.deepEqual(hwDevicesOf({ hw: { usbs: [] } }), { usbs: [] });
+  assert.deepEqual(hwDevicesOf({ 'hw-devices': { uarts: [] }, hw: { usbs: [] } }), { uarts: [] });
+  assert.deepEqual(shareableClientConfigFile({ type: 'hw', hw: { usbs: [] }, sw: { image: 'x', registryAuth: { password: 'p' } } }),
+    { type: 'hw', 'hw-devices': { usbs: [] } });
+});
+
+test('config file import: joinKey, coordinatorUrl, name, the Client\'s id, paths and legacy sections ignored; devices checked', () => {
   const file = {
-      coordinatorUrl: 'https://other', name: 'dut9', joinKey: 'k', clientId: 'c-9', type: 'sw',
+      coordinatorUrl: 'https://other', name: 'dut9', joinKey: 'k', clientId: 'c-9', type: 'hw',
       labels: ['board:x'], groups: ['g1'], heartbeatIntervalSec: 5, tokenFile: '/var/lib/thub/dut9.token', workDir: '/w',
       artifactory: { token: 'secret', tokenFile: '/etc/thub/a.token', allowedArtifactPrefixes: ['https://art/'] },
       sources: { allowedPrefixes: ['*'] },
       sw: { image: 'emu:1', registryAuth: { password: 'x' } },
-      hw: { stlinks: [{ index: 1 }] }
+      'hw-devices': { stlinks: [{ index: 1 }] }
     },
-    { valid, section, fields, ignored } = importClientConfigFile('sw', file);
+    { valid, section, fields, ignored } = importClientConfigFile('hw', file);
   assert.equal(valid, true);
-  assert.deepEqual(section, { image: 'emu:1' });
-  assert.deepEqual(fields, {
-    labels: ['board:x'], groups: ['g1'], heartbeatIntervalSec: 5,
-    artifactory: { allowedArtifactPrefixes: ['https://art/'] }, sources: { allowedPrefixes: ['*'] }, hw: { stlinks: [{ index: 1 }] }
-  });
-  assert.deepEqual(ignored.sort(), ['artifactory.tokenFile', 'clientId', 'coordinatorUrl', 'joinKey', 'name', 'tokenFile', 'workDir']);
+  assert.deepEqual(section, { stlinks: [{ index: 1 }] });
+  assert.deepEqual(fields, { labels: ['board:x'], groups: ['g1'], heartbeatIntervalSec: 5 });
+  assert.deepEqual(ignored.sort(), ['artifactory', 'clientId', 'coordinatorUrl', 'joinKey', 'name', 'sources', 'sw', 'tokenFile', 'workDir']);
 
-  assert.match(importClientConfigFile('hw', file).errors.join(), /SW Client config, but this is a HW Client/);
-  assert.match(importClientConfigFile('sw', { sw: { memory: 'lots' } }).errors.join(), /sw\.memory/);
-  assert.match(importClientConfigFile('sw', { labels: 'x' }).errors.join(), /labels must be array/);
-  assert.equal(importClientConfigFile('sw', []).valid, false);
-  assert.deepEqual(shareableClientConfigFile(file).artifactory, { tokenFile: '/etc/thub/a.token', allowedArtifactPrefixes: ['https://art/'] });
-  assert.deepEqual(shareableClientConfigFile(file).sw, { image: 'emu:1' });
+  // An older file's `hw` section counts as hw-devices.
+  assert.deepEqual(importClientConfigFile('hw', { hw: { usbs: [{ index: 2 }] } }).section, { usbs: [{ index: 2 }] });
+  // An SW Client: an empty section; any devices ignored.
+  const sw = importClientConfigFile('sw', { ...file, type: 'sw' });
+  assert.deepEqual([sw.valid, sw.section, sw.ignored.includes('hw-devices')], [true, {}, true]);
+
+  assert.match(importClientConfigFile('sw', file).errors.join(), /HW Client config, but this is a SW Client/);
+  assert.match(importClientConfigFile('hw', { 'hw-devices': { uarts: [{ path: '/tmp/x' }] } }).errors.join(), /hw-devices\.uarts/);
+  assert.match(importClientConfigFile('hw', { labels: 'x' }).errors.join(), /labels must be array/);
+  assert.equal(importClientConfigFile('hw', []).valid, false);
+  assert.deepEqual(Object.keys(shareableClientConfigFile(file)).filter((k) => ['artifactory', 'sources', 'sw'].includes(k)), []);
 });
 
 test('withoutPowerControl: an older file\'s relays and power dropped and named, also on import', () => {
   assert.deepEqual(withoutPowerControl({ usbs: [], relays: [{ channel: 0 }], power: { method: 'uhubctl', hub: '1-1', port: 2 } }), {
     section: { usbs: [] },
-    dropped: ['hw.relays', 'hw.power']
+    dropped: ['hw-devices.relays', 'hw-devices.power']
   });
   assert.deepEqual(withoutPowerControl({ usbs: [] }), { section: { usbs: [] }, dropped: [] });
   const imported = importClientConfigFile('hw', { hw: { usbs: [{ index: 1 }], relays: [{ channel: 0 }], power: { method: 'relay' } } });
   assert.equal(imported.valid, true, imported.errors.join());
   assert.deepEqual(imported.section, { usbs: [{ index: 1 }] });
-  assert.deepEqual(imported.ignored, ['hw.relays', 'hw.power']);
+  assert.deepEqual(imported.ignored, ['hw-devices.relays', 'hw-devices.power']);
 });

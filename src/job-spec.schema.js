@@ -79,8 +79,8 @@ const DOCKER_IMAGE_PATTERN =
         },
         default: []
       },
-      // A Docker image an SW Client runs as the DUT instead of its own
-      // sw.image, if it allows that (sw.allowJobImages) — `--docker-image`.
+      // A Docker image an SW Client runs as the job's DUT container, next to
+      // its command — `--docker-image`.
       image: { type: 'string', maxLength: 255, pattern: DOCKER_IMAGE_PATTERN },
       // A repository the Client clones before running the command — at `ref`
       // (branch, tag or commit; default: the default branch), `depth` commits
