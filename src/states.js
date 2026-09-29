@@ -72,6 +72,8 @@ const RESOURCE_STATES = Object.freeze({
     INFRA: 2, // ERROR, TIMEOUT, LOST
     CANCELED: 3,
     USAGE: 4,
+    // `thub status <id> --json` on a job still queued or running.
+    ACTIVE: 5,
     DETACHED: 130
   });
 
