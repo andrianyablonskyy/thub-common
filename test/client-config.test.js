@@ -15,25 +15,22 @@
 
 const test = require('node:test'),
   assert = require('node:assert/strict'),
-  { validateClientConfig, publicClientConfig, importClientConfigFile, shareableClientConfigFile } = require('../src/client-config');
+  { validateClientConfig, publicClientConfig, importClientConfigFile, shareableClientConfigFile, withoutPowerControl } = require('../src/client-config');
 
-test('hw: device lists, relays and power validate; bad entries are named', () => {
+test('hw: device lists validate; bad entries and power control (relays, power) are refused', () => {
   const ok = validateClientConfig('hw', {
     stlinks: [{ index: 1, serial: '066DFF485457725187092834', devpath: '3.3.4.3.1' }, { serial: 'ABC123' }],
     uarts: [{ path: '/dev/thub/dut1-uart', baudRate: 115200, devpath: '3.3.3.2', vendorId: '0403', subsystem: 'tty' }],
-    usbs: [{ index: 2 }],
-    relays: [{ channel: 0, baseUrl: 'http://localhost:3000' }],
-    power: { method: 'uhubctl', hub: '1-1', port: 2 }
+    usbs: [{ index: 2 }]
   });
   assert.equal(ok.valid, true, ok.errors.join('; '));
-  assert.equal(validateClientConfig('hw', { power: null }).valid, true);
 
   const bad = (section, re) => assert.match(validateClientConfig('hw', section).errors.join(), re);
   bad({ uarts: [{ path: '/tmp/x' }] }, /hw\.uarts\.0\.path must match/);
   bad({ uarts: [{ baudRate: 9600 }] }, /must match a schema in anyOf/); // neither index nor path
   bad({ stlinks: Array.from({ length: 9 }, (_, i) => ({ index: (i % 8) + 1 })) }, /must NOT have more than 8 items/);
-  bad({ relays: [{ channel: 8 }] }, /relays\.0\.channel must be <= 7/);
-  bad({ power: { method: 'magic' } }, /power\.method must be equal to one of/);
+  bad({ relays: [{ channel: 0 }] }, /must NOT have additional properties/);
+  bad({ power: { method: 'uhubctl', hub: '1-1', port: 2 } }, /must NOT have additional properties/);
   bad({ usbs: [{ index: 1, devpath: '1.1", RUN+="x' }] }, /devpath must match/);
 });
 
@@ -74,4 +71,16 @@ test('config file import: joinKey, coordinatorUrl, name, the Client\'s id, paths
   assert.equal(importClientConfigFile('sw', []).valid, false);
   assert.deepEqual(shareableClientConfigFile(file).artifactory, { tokenFile: '/etc/thub/a.token', allowedArtifactPrefixes: ['https://art/'] });
   assert.deepEqual(shareableClientConfigFile(file).sw, { image: 'emu:1' });
+});
+
+test('withoutPowerControl: an older file\'s relays and power dropped and named, also on import', () => {
+  assert.deepEqual(withoutPowerControl({ usbs: [], relays: [{ channel: 0 }], power: { method: 'uhubctl', hub: '1-1', port: 2 } }), {
+    section: { usbs: [] },
+    dropped: ['hw.relays', 'hw.power']
+  });
+  assert.deepEqual(withoutPowerControl({ usbs: [] }), { section: { usbs: [] }, dropped: [] });
+  const imported = importClientConfigFile('hw', { hw: { usbs: [{ index: 1 }], relays: [{ channel: 0 }], power: { method: 'relay' } } });
+  assert.equal(imported.valid, true, imported.errors.join());
+  assert.deepEqual(imported.section, { usbs: [{ index: 1 }] });
+  assert.deepEqual(imported.ignored, ['hw.relays', 'hw.power']);
 });

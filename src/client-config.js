@@ -44,26 +44,7 @@ const MAX_DEVICES = 8,
     properties: {
       stlinks: list(device({ serial: { type: 'string', pattern: '^[A-Za-z0-9]{1,64}$' } })),
       uarts: list(device({ baudRate: { type: 'integer', minimum: 50, maximum: 4000000 } })),
-      usbs: list(device()),
-      relays: list({
-        type: 'object',
-        additionalProperties: false,
-        required: ['channel'],
-        properties: {
-          channel: { type: 'integer', minimum: 0, maximum: 7 },
-          baseUrl: { type: 'string', format: 'uri', pattern: '^https?://' }
-        }
-      }),
-      power: {
-        type: ['object', 'null'],
-        additionalProperties: false,
-        properties: {
-          method: { enum: ['uhubctl', 'relay'] },
-          hub: { type: 'string', pattern: '^[A-Za-z0-9.:-]{1,32}$' },
-          port: { type: 'integer', minimum: 1, maximum: 64 },
-          baseUrl: { type: 'string', format: 'uri', pattern: '^https?://' }
-        }
-      }
+      usbs: list(device())
     }
   },
   swSchema = {
@@ -88,6 +69,18 @@ validators.sw = ajv.compile(swSchema);
 // Fields of a section that never leave the Client (secrets) — kept on the
 // Client when a dashboard edit is applied, never reported or accepted.
 const PRIVATE_FIELDS = { hw: [], sw: ['registryAuth'] };
+
+// An hw section without the power control Clients no longer have
+// (hw.relays, hw.power — relay boards and uhubctl), so a config file that
+// still has them reports, saves and imports without them. Returns
+// { section, dropped } (dropped: the names left out).
+function withoutPowerControl(hw){
+  if (!hw || typeof hw !== 'object' || Array.isArray(hw)){
+    return { section: hw, dropped: [] };
+  }
+  const { relays, power, ...section } = hw;
+  return { section, dropped: [...(relays !== undefined ? ['hw.relays'] : []), ...(power !== undefined ? ['hw.power'] : [])] };
+}
 
 // { valid, errors } for a Client's `type` ('hw' | 'sw') config section.
 function validateClientConfig(type, section){
@@ -176,6 +169,11 @@ function importClientConfigFile(type, file){
     ignored = [],
     fields = {},
     errors = [];
+  if (shared.hw !== undefined){
+    const { section: hw, dropped } = withoutPowerControl(shared.hw);
+    shared.hw = hw;
+    ignored.push(...dropped);
+  }
   for (const [key, value]of Object.entries(shared)){
     if (IMPORT_IGNORED_FIELDS.includes(key) || isHostBound(key)){
       ignored.push(key);
@@ -209,6 +207,7 @@ module.exports = {
   publicClientConfig,
   shareableClientConfigFile,
   importClientConfigFile,
+  withoutPowerControl,
   CLIENT_CONFIG_PRIVATE_FIELDS: PRIVATE_FIELDS,
   CLIENT_CONFIG_IMPORT_IGNORED: IMPORT_IGNORED_FIELDS
 };
