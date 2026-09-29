@@ -114,4 +114,101 @@ function publicClientConfig(type, section){
   return out;
 }
 
-module.exports = { validateClientConfig, publicClientConfig, CLIENT_CONFIG_PRIVATE_FIELDS: PRIVATE_FIELDS };
+// ── The whole config file: dashboard Export / Import (README §10) ──────────
+
+// Never taken from an imported file: how this Client reaches and joins its
+// Coordinator, and its name (the dashboard renames it instead).
+const IMPORT_IGNORED_FIELDS = ['joinKey', 'coordinatorUrl', 'name'],
+  // Top-level fields a config file may carry, checked on import (anything
+  // else is passed through as is). Nested secrets (artifactory.token,
+  // sw.registryAuth) never leave the Client and are never imported.
+  strings = { type: 'array', maxItems: 64, items: { type: 'string', minLength: 1, maxLength: 1024 } },
+  fileSchema = {
+    type: 'object',
+    properties: {
+      type: { enum: ['hw', 'sw'] },
+      labels: strings,
+      groups: strings,
+      heartbeatIntervalSec: { type: 'integer', minimum: 1, maximum: 3600 },
+      longPollWaitSec: { type: 'integer', minimum: 1, maximum: 3600 },
+      sources: { type: 'object', properties: { allowedPrefixes: strings } },
+      artifactory: { type: 'object', properties: { allowedArtifactPrefixes: strings } }
+    }
+  },
+  validateFile = ajv.compile(fileSchema),
+
+  // Also never imported: what ties a config to its host and instance — the
+  // Client's identity (clientId) and every file or directory path (tokenFile,
+  // socketPath, workDir, varDir, …): taken from another Client they'd share
+  // its token, socket or state.
+  isHostBound = (key) => key === 'clientId' || /(File|Path|Dir)$/.test(key);
+
+// A config file with the Client-only secrets removed — what a Client
+// reports for Export, and what an import may carry.
+function shareableClientConfigFile(file){
+  const out = JSON.parse(JSON.stringify(file || {}));
+  if (out.artifactory && typeof out.artifactory === 'object'){
+    delete out.artifactory.token;
+  }
+  for (const [type, keys]of Object.entries(PRIVATE_FIELDS)){
+    for (const key of out[type] && typeof out[type] === 'object' ? keys : []){
+      delete out[type][key];
+    }
+  }
+  return out;
+}
+
+// Checks an imported config file for a `type` Client and splits it into
+// what gets applied: { valid, errors, section (its hw/sw section, or null),
+// fields (the other top-level fields), ignored (names left out) }.
+function importClientConfigFile(type, file){
+  const fail = (...errors) => ({ valid: false, errors, section: null, fields: {}, ignored: [] });
+  if (!file || typeof file !== 'object' || Array.isArray(file)){
+    return fail('the file must hold a JSON object — a Client config');
+  }
+  if (file.type !== undefined && file.type !== type){
+    return fail(`it's a ${String(file.type).toUpperCase()} Client config, but this is a ${type.toUpperCase()} Client`);
+  }
+  if (!validateFile(file)){
+    return fail(...validateFile.errors.map((e) => `${e.instancePath.replace(/^\//, '').replace(/\//g, '.') || 'config'} ${e.message}`));
+  }
+  const shared = shareableClientConfigFile(file),
+    ignored = [],
+    fields = {},
+    errors = [];
+  for (const [key, value]of Object.entries(shared)){
+    if (IMPORT_IGNORED_FIELDS.includes(key) || isHostBound(key)){
+      ignored.push(key);
+    }
+    else if (key === 'artifactory'){
+      // Its tokenFile is a path on the Client's host: kept from there.
+      const { tokenFile, ...rest } = value;
+      if (tokenFile !== undefined){
+        ignored.push('artifactory.tokenFile');
+      }
+      fields.artifactory = rest;
+    }
+    else if (key !== 'type' && key !== type){
+      fields[key] = value;
+    }
+  }
+  // Both sections are checked: the other type's one is kept in the file too.
+  const section = shared[type] === undefined ? null : shared[type],
+    other = type === 'hw' ? 'sw' : 'hw';
+  if (section !== null){
+    errors.push(...validateClientConfig(type, section).errors);
+  }
+  if (fields[other] !== undefined){
+    errors.push(...validateClientConfig(other, fields[other]).errors);
+  }
+  return { valid: errors.length === 0, errors, section, fields, ignored };
+}
+
+module.exports = {
+  validateClientConfig,
+  publicClientConfig,
+  shareableClientConfigFile,
+  importClientConfigFile,
+  CLIENT_CONFIG_PRIVATE_FIELDS: PRIVATE_FIELDS,
+  CLIENT_CONFIG_IMPORT_IGNORED: IMPORT_IGNORED_FIELDS
+};
