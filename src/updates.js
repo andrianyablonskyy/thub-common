@@ -89,20 +89,50 @@ function npmBin(){
   return fs.existsSync(candidate) ? candidate : 'npm';
 }
 
+// npm's errors for a version that isn't downloadable (yet): right after a
+// publish, the registry can list a version whose tarball still 404s for a
+// few minutes — worth waiting for, unlike any other failure.
+const NOT_YET_AVAILABLE = /\b(E404|ETARGET|ENOVERSIONS)\b/,
+  // How long to wait before each retry of such a failure: ~7.5 min in all.
+  NPM_RETRY_DELAYS_SEC = [30, 60, 120, 240];
+
+function sleepSync(ms){
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
 // `npm i -g <pkg>@<version>` (as the current user — root for the Client's
-// update helper; `sudo` is the caller's job otherwise). Returns npm's exit code.
-function npmInstallGlobal(pkg, version, { env = process.env, stdio = 'inherit' } = {}){
+// and Coordinator's update helpers; `sudo` is the caller's job otherwise).
+// Always with --prefer-online, so a stale cached packument can't hide or
+// misplace a fresh version. A "not found" failure is retried after each of
+// `retryDelaysSec` (npm's stderr is read to tell, and passed on); anything
+// else fails at once. Returns npm's exit code. `spawn`/`sleep`: for tests.
+function npmInstallGlobal(pkg, version, {
+  env = process.env, stdio = 'inherit', retryDelaysSec = NPM_RETRY_DELAYS_SEC, log = (line) => console.error(line),
+  spawn = spawnSync, sleep = sleepSync
+} = {}){
   if (!Object.values(PACKAGES).includes(pkg)){
     throw new Error(`Refusing to install unknown package ${pkg}`);
   }
   if (!isValidVersion(version)){
     throw new Error(`Invalid version "${version}"`);
   }
-  const result = spawnSync(npmBin(), ['i', '-g', `${pkg}@${version}`], { env, stdio });
-  if (result.error){
-    throw result.error;
+  const [stdin, stdout] = Array.isArray(stdio) ? stdio : [stdio, stdio],
+    args = ['i', '-g', '--prefer-online', `${pkg}@${version}`];
+  for (let attempt = 0; ; attempt++){
+    const result = spawn(npmBin(), args, { env, stdio: [stdin, stdout, 'pipe'], encoding: 'utf8' });
+    if (result.error){
+      throw result.error;
+    }
+    const stderr = result.stderr || '';
+    if (stderr){
+      process.stderr.write(stderr);
+    }
+    if (result.status === 0 || !NOT_YET_AVAILABLE.test(stderr) || attempt >= retryDelaysSec.length){
+      return result.status;
+    }
+    log(`${pkg}@${version} isn't downloadable from the registry yet (just published?) — retrying in ${retryDelaysSec[attempt]} s`);
+    sleep(retryDelaysSec[attempt] * 1000);
   }
-  return result.status;
 }
 
 module.exports = {
@@ -113,5 +143,6 @@ module.exports = {
   defaultRegistry,
   fetchLatestVersion,
   npmBin,
-  npmInstallGlobal
+  npmInstallGlobal,
+  NPM_RETRY_DELAYS_SEC
 };
