@@ -103,7 +103,8 @@ test('env: any NAME=string pairs — no name is special, except the Client\'s ow
   assert.equal(check({ DOCKER_PASSWORD: 'p' }).valid, true);
   assert.equal(check({ '1BAD': 'x' }).valid, false);
   assert.equal(check({ A: 1 }).valid, false);
-  assert.match(check({ THUB_JOB_ID: 'x', GIT_ALLOW_PROTOCOL: 'ext' }).errors.join(), /THUB_JOB_ID, GIT_ALLOW_PROTOCOL: set by the Client itself/);
+  assert.match(check({ THUB_JOB_ID: 'x', JOB_GIT_DEPTH: '1', GIT_ALLOW_PROTOCOL: 'ext' }).errors.join(),
+    /THUB_JOB_ID, JOB_GIT_DEPTH, GIT_ALLOW_PROTOCOL: set by the Client itself/);
 });
 
 test('maskEnv: names kept, values hidden', () => {

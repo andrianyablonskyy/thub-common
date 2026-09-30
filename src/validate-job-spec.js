@@ -55,7 +55,7 @@ function legacyShapeError(spec){
 const GIT_URL = /^(?:(?:https?|ssh|git):\/\/[^\s]+|[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:[^\s]+)$/,
 
   // Job env names the Client sets itself for a job's commands (besides
-  // THUB_*): git's safety settings.
+  // THUB_* and JOB_* — the job's own parameters): git's safety settings.
   RESERVED_ENV = ['GIT_TERMINAL_PROMPT', 'GIT_ALLOW_PROTOCOL'];
 
 // Rules across fields, spelled out here rather than as schema if/then,
@@ -69,9 +69,9 @@ function crossFieldErrors(spec){
     errors.push('/git/url must be an https://, http://, ssh:// or git:// URL, or user@host:path');
   }
   const envNames = Object.keys(spec.env && typeof spec.env === 'object' ? spec.env : {}),
-    reserved = envNames.filter((n) => /^THUB_/.test(n) || RESERVED_ENV.includes(n));
+    reserved = envNames.filter((n) => /^(THUB|JOB)_/.test(n) || RESERVED_ENV.includes(n));
   if (reserved.length){
-    errors.push(`/env ${reserved.join(', ')}: set by the Client itself (THUB_*, ${RESERVED_ENV.join(', ')}) — use other names`);
+    errors.push(`/env ${reserved.join(', ')}: set by the Client itself (THUB_*, JOB_*, ${RESERVED_ENV.join(', ')}) — use other names`);
   }
   if (spec.git?.options){
     try {
