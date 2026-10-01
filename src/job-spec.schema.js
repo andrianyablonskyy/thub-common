@@ -48,7 +48,8 @@ const DOCKER_IMAGE_PATTERN =
             default: []
           },
           // Constrains scheduling to resources that are members of this
-          // group (§13.1, `thub run --group <id>`) — a third targeting
+          // group (§13.1): filled in by the Coordinator from the submitting
+          // agent's group (set on the dashboard; an Agent's own is replaced) — a third targeting
           // dimension alongside type/labels. Omitted: any matching resource
           // in any (or no) group is eligible, same as before groups existed.
           group: { type: 'string', minLength: 1 },
