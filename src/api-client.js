@@ -19,6 +19,21 @@
  * both speak the exact same protocol (README.md §1: "This keeps CI
  * and manual usage identical").
  */
+const RATE_LIMIT_RETRIES = 3,
+  RATE_LIMIT_MAX_WAIT_SEC = 60;
+
+// Resolves after `ms`, or early (no rejection) once `signal` aborts — the
+// caller's next fetch then rejects with the abort as usual.
+function sleep(ms, signal){
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener('abort', () => {
+      clearTimeout(timer);
+      resolve();
+    }, { once: true });
+  });
+}
+
 class ApiClient{
   // `userAgent` (e.g. "thub-agent/1.0.8") is how the Coordinator learns
   // which Agent/Client version is talking to it, for the dashboard.
@@ -58,7 +73,7 @@ class ApiClient{
     }
 
     const isJsonBody = body !== undefined && !(body instanceof FormData),
-      res = await fetch(url, {
+      send = () => fetch(url, {
         method,
         signal,
         headers: this._headers({
@@ -66,9 +81,20 @@ class ApiClient{
           ...headers
         }),
         body: isJsonBody ? JSON.stringify(body) : body
-      }),
+      });
 
-      text = await res.text(),
+    // 429 (the Coordinator's rate limit): wait as long as Retry-After says
+    // (capped) and try again, a few times, instead of failing the command
+    // or the job outright.
+    let res = await send();
+    for (let attempt = 1; res.status === 429 && attempt <= RATE_LIMIT_RETRIES && !signal?.aborted; attempt++){
+      const waitSec = Math.min(Number(res.headers.get('retry-after')) || attempt * 2, RATE_LIMIT_MAX_WAIT_SEC);
+      await res.text().catch(() => {});
+      await sleep(waitSec * 1000, signal);
+      res = await send();
+    }
+
+    const text = await res.text(),
       data = text ? safeJson(text) : undefined;
 
     if (!res.ok){
