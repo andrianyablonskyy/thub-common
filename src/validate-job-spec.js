@@ -15,8 +15,7 @@
 
 const Ajv = require('ajv'),
   addFormats = require('ajv-formats'),
-  { jobSpecSchema } = require('./job-spec.schema'),
-  { splitArgs } = require('./split-args');
+  { jobSpecSchema } = require('./job-spec.schema');
 
 const ajv = new Ajv({ useDefaults: true, allErrors: true, strict: false });
 addFormats(ajv);
@@ -27,7 +26,7 @@ const validateFn = ajv.compile(jobSpecSchema);
  * Returns { valid, spec, errors }.
  */
 function validateJobSpec(spec){
-  const legacy = legacyShapeError(spec);
+  const legacy = legacyShapeError(spec) || removedFieldsError(spec);
   if (legacy){
     return { valid: false, spec: JSON.parse(JSON.stringify(spec ?? {})), errors: [legacy] };
   }
@@ -44,42 +43,31 @@ function validateJobSpec(spec){
 function legacyShapeError(spec){
   if (spec && typeof spec === 'object' && ('firmware' in spec || 'tests' in spec) && !('command' in spec)){
     return '/ this job spec is from an older Agent (firmware/tests fields) — update the Agent (thub self-update) ' +
-      'and use --command, --download-file, --docker-image and --git-repo';
+      'and use --command and --download-file';
   }
   return null;
 }
 
-// Git transports a Client may fetch sources over. Never `ext::` (runs a
-// command), `file://` or a local path: the Client also sets
-// GIT_ALLOW_PROTOCOL to the same list (downloader.js).
-const GIT_URL = /^(?:(?:https?|ssh|git):\/\/[^\s]+|[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:[^\s]+)$/,
-
-  // Job env names the Client sets itself for a job's commands (besides
-  // THUB_* and JOB_* — the job's own parameters): git's safety settings.
-  RESERVED_ENV = ['GIT_TERMINAL_PROMPT', 'GIT_ALLOW_PROTOCOL'];
+// `git` (--git-repo/--depth/--git-options) and `image` (--docker-image) are
+// gone: the Client no longer clones or runs containers itself. Said plainly
+// rather than as unknown properties.
+function removedFieldsError(spec){
+  const removed = ['git', 'image'].filter((k) => spec && typeof spec === 'object' && spec[k] !== undefined);
+  if (!removed.length){
+    return null;
+  }
+  return `/ ${removed.join(', ')}: --git-repo, --git-options, --depth and --docker-image are no longer supported — ` +
+    'clone the repository or run docker in --command, passing credentials with --env (update the Agent: thub self-update)';
+}
 
 // Rules across fields, spelled out here rather than as schema if/then,
 // whose errors ("must match a schema in then") say little.
 function crossFieldErrors(spec){
-  const errors = [];
-  if (spec.image && spec.target?.type === 'hw'){
-    errors.push('/image a Docker image only works for SW jobs (target.type "sw")');
-  }
-  if (spec.git && !GIT_URL.test(spec.git.url || '')){
-    errors.push('/git/url must be an https://, http://, ssh:// or git:// URL, or user@host:path');
-  }
-  const envNames = Object.keys(spec.env && typeof spec.env === 'object' ? spec.env : {}),
-    reserved = envNames.filter((n) => /^(THUB|JOB)_/.test(n) || RESERVED_ENV.includes(n));
+  const errors = [],
+    envNames = Object.keys(spec.env && typeof spec.env === 'object' ? spec.env : {}),
+    reserved = envNames.filter((n) => /^(THUB|JOB)_/.test(n));
   if (reserved.length){
-    errors.push(`/env ${reserved.join(', ')}: set by the Client itself (THUB_*, JOB_*, ${RESERVED_ENV.join(', ')}) — use other names`);
-  }
-  if (spec.git?.options){
-    try {
-      splitArgs(spec.git.options);
-    }
-    catch (err){
-      errors.push(`/git/options can't be split into arguments: ${err.message}`);
-    }
+    errors.push(`/env ${reserved.join(', ')}: set by the Client itself (THUB_*, JOB_*) — use other names`);
   }
   return errors;
 }

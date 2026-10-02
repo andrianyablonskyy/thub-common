@@ -1,7 +1,7 @@
 /**
  * @file        packages/shared/src/split-args.js
  * @description Splits a command-line options string into arguments the way a POSIX shell would quote them —
- *              without running a shell (for `thub run --git-options`)
+ *              without running a shell (kept for callers of thub-common; TestHub itself no longer uses it)
  *
  * @author      Andrian Yablonskyy
  * @copyright   Copyright (c) 2026 Andrian Yablonskyy. All rights reserved.
