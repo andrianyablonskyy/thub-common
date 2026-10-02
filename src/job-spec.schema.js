@@ -56,7 +56,7 @@ const ENV_NAME_PATTERN = '^[A-Za-z_][A-Za-z0-9_]*$',
       // Client runs with `sh -c`, `args` as "$@" (`--arg`, repeatable).
       command: { type: 'string', minLength: 1, maxLength: 4096 },
       args: { type: 'array', items: { type: 'string' }, default: [] },
-      // Passed to the command as THUB_SUITE (`--suite`).
+      // Passed to the command as JOB_SUITE (`--suite`).
       suite: { type: 'string', default: 'default' },
       // Files the Client downloads into the task's work directory before
       // running the command (`--download-file`, repeatable).
