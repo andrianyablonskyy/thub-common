@@ -65,35 +65,12 @@ test('downloads: any number of http(s) URLs', () => {
   assert.equal(validateJobSpec(minimal({ downloads: [{}] })).valid, false);
 });
 
-test('image: a Docker image reference, SW jobs only', () => {
-  const sw = (image) => validateJobSpec({ ...minimal({ image }), target: { type: 'sw' } });
-  assert.equal(sw('alpine').valid, true);
-  assert.equal(sw('registry.lab:5000/team/emu:1.2').valid, true);
-  assert.equal(sw(`alpine@sha256:${'a'.repeat(64)}`).valid, true);
-  assert.equal(sw('Alpine; rm -rf /').valid, false);
-  assert.match(validateJobSpec(minimal({ image: 'alpine' })).errors.join(), /only works for SW jobs/);
-});
-
-test('git: repo URL, optional ref (branch/tag/commit) and depth (default 1); unsafe input rejected', () => {
-  const check = (git) => validateJobSpec(minimal({ git }));
-  assert.equal(check({ url: 'https://git.lab/team/tests.git' }).spec.git.depth, 1);
-  assert.equal(check({ url: 'https://git.lab/team/tests.git', ref: 'release/1.2', depth: 5 }).valid, true);
-  assert.equal(check({ url: 'git@github.com:team/tests.git', ref: 'v1.0.0' }).valid, true);
-  assert.equal(check({ url: 'ssh://git@git.lab/tests', ref: 'a1b2c3d', depth: 0 }).valid, true);
-  for (const url of ['ext::sh -c touch% /tmp/pwned', 'file:///etc', '/srv/repo.git', '--upload-pack=touch /tmp/x']){
-    assert.equal(check({ url }).valid, false, url);
+test('git / image (--git-repo, --docker-image) are gone: refused with what to do instead', () => {
+  for (const extra of [{ git: { url: 'https://git.lab/t.git' } }, { image: 'alpine' }]){
+    const { valid, errors } = validateJobSpec({ target: { type: 'sw' }, command: 'x', ...extra });
+    assert.equal(valid, false);
+    assert.match(errors.join(), /no longer supported — clone the repository or run docker in --command, passing credentials with --env/);
   }
-  for (const ref of ['-b', '--upload-pack=x', 'a..b', 'a b', 'feature/', 'x.lock']){
-    assert.equal(check({ url: 'https://x/r.git', ref }).valid, false, ref);
-  }
-  assert.equal(check({ url: 'https://x/r.git', depth: -1 }).valid, false);
-});
-
-test('git.options: a quoted options string; unbalanced quotes are refused', () => {
-  const check = (options) => validateJobSpec({ target: { type: 'hw' }, command: 'x', git: { url: 'https://x/r.git', options } });
-  assert.equal(check('-c core.sshCommand="ssh -i ~/.ssh/k -p 2222"').valid, true);
-  assert.match(check('-c "open').errors.join(), /git\/options can't be split.*unterminated/);
-  assert.equal(check('x'.repeat(1025)).valid, false);
 });
 
 test('env: any NAME=string pairs — no name is special, except the Client\'s own', () => {
@@ -103,8 +80,8 @@ test('env: any NAME=string pairs — no name is special, except the Client\'s ow
   assert.equal(check({ DOCKER_PASSWORD: 'p' }).valid, true);
   assert.equal(check({ '1BAD': 'x' }).valid, false);
   assert.equal(check({ A: 1 }).valid, false);
-  assert.match(check({ THUB_JOB_ID: 'x', JOB_GIT_DEPTH: '1', GIT_ALLOW_PROTOCOL: 'ext' }).errors.join(),
-    /THUB_JOB_ID, JOB_GIT_DEPTH, GIT_ALLOW_PROTOCOL: set by the Client itself/);
+  assert.match(check({ THUB_JOB_ID: 'x', JOB_TYPE: '1' }).errors.join(), /THUB_JOB_ID, JOB_TYPE: set by the Client itself/);
+  assert.equal(check({ GIT_TOKEN: 't', GIT_SSH_COMMAND: 'ssh -i k' }).valid, true); // git's own names are the job's now
 });
 
 test('maskEnv: names kept, values hidden', () => {

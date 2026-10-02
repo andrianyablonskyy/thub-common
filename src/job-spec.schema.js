@@ -13,23 +13,14 @@
 
 'use strict';
 
-// A Docker image reference: [host[:port]/]path[:tag][@sha256:digest], e.g.
-// `alpine`, `alpine:3.20`, `library/ubuntu:24.04`, `registry.lab:5000/emu:1`.
-const DOCKER_IMAGE_PATTERN =
-    '^[A-Za-z0-9][A-Za-z0-9.-]*(:[0-9]+)?(/[a-z0-9]+((\\.|_|__|-+)[a-z0-9]+)*)*(:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})?(@sha256:[a-f0-9]{64})?$',
-
-  // A git ref to check out — a branch, a tag or a commit (hex) — as git
-  // allows them: no leading "-" (never taken for an option) or "/", no "..",
-  // no spaces or the characters git forbids, not ending in "/", ".lock", ".".
-  GIT_REF_PATTERN = '^(?![-/])(?!.*\\.\\.)(?!.*//)(?!.*(/|\\.lock|\\.)$)[A-Za-z0-9._/+@-]+$',
-
-  // An environment variable name a job may set (`--env NAME=value`).
-  ENV_NAME_PATTERN = '^[A-Za-z_][A-Za-z0-9_]*$',
+// An environment variable name a job may set (`--env NAME=value`).
+const ENV_NAME_PATTERN = '^[A-Za-z_][A-Za-z0-9_]*$',
 
   // Matches the job spec shape documented in README.md §4.3. A task is:
-  // optionally files to download and/or a git checkout, optionally (SW only)
-  // a Docker image to run as the DUT, and — always — the shell command that
-  // is its entry point, run on the Client in the checkout / work directory.
+  // optionally files to download, and — always — the shell command that is
+  // its entry point, run on the Client in the job's work directory. Anything
+  // else it needs (a git checkout, a Docker container) the command does
+  // itself, with credentials passed in `env`.
   jobSpecSchema = {
     $id: 'https://thub.example.com/schemas/job-spec.json',
     type: 'object',
@@ -80,30 +71,8 @@ const DOCKER_IMAGE_PATTERN =
         },
         default: []
       },
-      // A Docker image an SW Client runs as the job's DUT container, next to
-      // its command — `--docker-image`.
-      image: { type: 'string', maxLength: 255, pattern: DOCKER_IMAGE_PATTERN },
-      // A repository the Client clones before running the command — at `ref`
-      // (branch, tag or commit; default: the default branch), `depth` commits
-      // deep (0 = full history). `--git-repo <url> [ref] [--depth <n>]`.
-      git: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['url'],
-        properties: {
-          url: { type: 'string', minLength: 1, maxLength: 2048 },
-          ref: { type: 'string', maxLength: 255, pattern: GIT_REF_PATTERN },
-          depth: { type: 'integer', minimum: 0, maximum: 100000, default: 1 },
-          // Extra git options (`--git-options`), shell-quoted, inserted
-          // between `git` and its subcommand on the Client — e.g.
-          // -c core.sshCommand="ssh -i ~/.ssh/lab_key -p 2222". Stored with
-          // the job and visible like the rest of it: reference key files on
-          // the Client rather than putting secrets here.
-          options: { type: 'string', minLength: 1, maxLength: 1024 }
-        }
-      },
-      // Environment variables (`--env NAME=value`) the Client sets for every
-      // command it runs for the job — git and the job's command. No name
+      // Environment variables (`--env NAME=value`) the Client sets for the
+      // job's command — tokens for a git clone or docker login, say. No name
       // means anything special. Values are secrets as far as the Coordinator
       // is concerned: masked in the Agent API and dropped from its database
       // once the job ends.
@@ -130,4 +99,4 @@ const DOCKER_IMAGE_PATTERN =
     }
   };
 
-module.exports = { jobSpecSchema, DOCKER_IMAGE_PATTERN, ENV_NAME_PATTERN };
+module.exports = { jobSpecSchema, ENV_NAME_PATTERN };
