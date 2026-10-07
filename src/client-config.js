@@ -16,7 +16,8 @@
 'use strict';
 
 const Ajv = require('ajv'),
-  addFormats = require('ajv-formats');
+  addFormats = require('ajv-formats'),
+  { MAX_POWER_PORTS } = require('./power');
 
 // The config file's key for an HW Client's devices. Older files call it
 // `hw`, still read (and rewritten as `hw-devices` on the next save).
@@ -46,7 +47,29 @@ const HW_DEVICES = 'hw-devices',
     properties: {
       stlinks: list(device({ serial: { type: 'string', pattern: '^[A-Za-z0-9]{1,64}$' } })),
       uarts: list(device({ baudRate: { type: 'integer', minimum: 50, maximum: 4000000 } })),
-      usbs: list(device())
+      usbs: list(device()),
+      // USB port power switched with uhubctl (README §8.7): each port by its
+      // hub's location and port number, as `uhubctl` lists them
+      // ("Current status for hub 1-1.4" … "Port 2").
+      usbPower: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          ports: {
+            type: 'array',
+            maxItems: MAX_POWER_PORTS,
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['hub', 'port'],
+              properties: {
+                hub: { type: 'string', pattern: '^[0-9]+(-[0-9]+(\\.[0-9]+)*)?$', maxLength: 64 },
+                port: { type: 'integer', minimum: 1, maximum: 255 }
+              }
+            }
+          }
+        }
+      }
     }
   },
   // An SW Client has no settings of its own: its editable section is empty.
@@ -62,8 +85,8 @@ function hwDevicesOf(file){
   return file?.[HW_DEVICES] !== undefined ? file[HW_DEVICES] : file?.hw;
 }
 
-// An hw-devices section without the power control Clients no longer have
-// (relays, power — relay boards and uhubctl), so a config file that still
+// An hw-devices section without the older power control Clients no longer
+// have (relays, power — relay boards, and uhubctl before usbPower), so a config file that still
 // has them reports, saves and imports without them. Returns
 // { section, dropped } (dropped: the names left out).
 function withoutPowerControl(hw){

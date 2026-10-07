@@ -69,6 +69,10 @@ function crossFieldErrors(spec){
   if (reserved.length){
     errors.push(`/env ${reserved.join(', ')}: set by the Client itself (THUB_*, JOB_*) — use other names`);
   }
+  // USB power is an HW Client's (its hw-devices.usbPower ports).
+  if (spec.power && spec.target?.type !== 'hw'){
+    errors.push('/power USB port power is for HW jobs only (--type hw)');
+  }
   return errors;
 }
 

@@ -96,3 +96,12 @@ test('parseEnvList (--env): comma-separated, values may hold commas, a bare NAME
   assert.throws(() => parseEnvList(['NOPE'], {}), /--env NOPE: not set in this shell/);
   assert.throws(() => parseEnvList(['1X=2'], {}), /expected NAME=value/);
 });
+
+test('power: on|off|reset at start and end, a reset delay of 0-60 s, HW jobs only', () => {
+  const ok = validateJobSpec(minimal({ power: { onStart: 'reset', onEnd: 'off', resetDelaySec: 2.5 } }));
+  assert.equal(ok.valid, true, ok.errors.join('; '));
+  assert.match(validateJobSpec(minimal({ power: { onStart: 'cycle' } })).errors.join(), /\/power\/onStart must be equal to one of/);
+  assert.match(validateJobSpec(minimal({ power: { resetDelaySec: 61 } })).errors.join(), /\/power\/resetDelaySec must be <= 60/);
+  assert.match(validateJobSpec(minimal({ power: { hub: '1-1' } })).errors.join(), /must NOT have additional properties/);
+  assert.match(validateJobSpec(minimal({ target: { type: 'sw' }, power: { onEnd: 'off' } })).errors.join(), /HW jobs only/);
+});

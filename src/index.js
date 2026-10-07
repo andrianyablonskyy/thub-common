@@ -22,5 +22,6 @@ module.exports = {
   ...require('./client-config'),
   ...require('./split-args'),
   ...require('./env-list'),
+  ...require('./power'),
   ApiClient: require('./api-client').ApiClient
 };

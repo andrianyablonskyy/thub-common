@@ -86,3 +86,15 @@ test('withoutPowerControl: an older file\'s relays and power dropped and named, 
   assert.deepEqual(imported.section, { usbs: [{ index: 1 }] });
   assert.deepEqual(imported.ignored, ['hw-devices.relays', 'hw-devices.power']);
 });
+
+test('hw-devices.usbPower: uhubctl ports by hub location and port number', () => {
+  const ok = validateClientConfig('hw', { usbPower: { ports: [{ hub: '1-1.4', port: 2 }, { hub: '3', port: 1 }] } });
+  assert.equal(ok.valid, true, ok.errors.join('; '));
+  const bad = (section, re) => assert.match(validateClientConfig('hw', { usbPower: section }).errors.join(), re);
+  bad({ ports: [{ hub: '1-1.4' }] }, /must have required property 'port'/);
+  bad({ ports: [{ hub: '1-1; reboot', port: 1 }] }, /hub must match/);
+  bad({ ports: [{ hub: '1-1', port: 0 }] }, /port must be >= 1/);
+  bad({ ports: Array.from({ length: 9 }, (_, i) => ({ hub: '1-1', port: i + 1 })) }, /must NOT have more than 8 items/);
+  // Not the older `power` section, which import still drops.
+  assert.deepEqual(withoutPowerControl({ usbPower: { ports: [] }, power: {} }), { section: { usbPower: { ports: [] } }, dropped: ['hw-devices.power'] });
+});

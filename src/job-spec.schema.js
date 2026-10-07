@@ -13,6 +13,8 @@
 
 'use strict';
 
+const { POWER_ACTIONS, MAX_RESET_DELAY_SEC } = require('./power');
+
 // An environment variable name a job may set (`--env NAME=value`).
 const ENV_NAME_PATTERN = '^[A-Za-z_][A-Za-z0-9_]*$',
 
@@ -92,6 +94,19 @@ const ENV_NAME_PATTERN = '^[A-Za-z_][A-Za-z0-9_]*$',
       // not an identity: nothing authenticates or enforces it.
       user: { type: 'string', minLength: 1 },
       meta: { type: 'object' },
+      // USB port power on the Client (uhubctl, README §8.7) at the job's
+      // start (before the DUT is prepared) and end (whatever the verdict):
+      // `--power-on-start` / `--power-on-end` on|off|reset, and the reset's
+      // off time `--power-reset-delay` (seconds; 1 when not given). HW only.
+      power: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          onStart: { enum: POWER_ACTIONS },
+          onEnd: { enum: POWER_ACTIONS },
+          resetDelaySec: { type: 'number', minimum: 0, maximum: MAX_RESET_DELAY_SEC }
+        }
+      },
       // Exercises the full pipeline (schedule, accept, state transitions,
       // logs, artifact, result) without flashing/running anything for real —
       // see README §7.1 "Dry-run the pipeline".
