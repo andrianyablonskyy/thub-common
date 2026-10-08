@@ -1,6 +1,7 @@
 /**
  * @file        packages/shared/test/updates.test.js
- * @description Tests: npm i -g for self-updates — retried while a just-published version isn't downloadable yet
+ * @description Tests: releases from each package's git repository — the latest tag, `npm i -g` from git, and which
+ *              installs came from npm
  *
  * @author      Andrian Yablonskyy
  * @copyright   Copyright (c) 2026 Andrian Yablonskyy. All rights reserved.
@@ -15,57 +16,71 @@
 
 const test = require('node:test'),
   assert = require('node:assert/strict'),
-  { npmInstallGlobal, PACKAGES, NPM_RETRY_DELAYS_SEC } = require('../src/updates');
+  {
+    npmInstallGlobal, fetchLatestVersion, installSpec, installCommand, installedFromNpm, PACKAGES, REPOSITORIES, LAST_NPM_VERSIONS
+  } = require('../src/updates');
 
-// npm, faked: answers with the given results in turn; records every call.
-function fakeNpm(results){
-  const calls = [],
-    slept = [];
-  return {
-    calls,
-    slept,
-    opts: {
-      spawn: (bin, args, options) => {
-        calls.push({ args, stdio: options.stdio });
-        return results[calls.length - 1];
-      },
-      sleep: (ms) => slept.push(ms),
-      log: () => {}
+const lsRemote = (tags) => async () => ({ stdout: tags.map((t, i) => `${String(i).padStart(40, '0')}\trefs/tags/${t}`).join('\n') + '\n' });
+
+test('every package is released from its git repository: the Agent and Client public, the Coordinator private', () => {
+  assert.equal(REPOSITORIES[PACKAGES.agent], 'git+https://github.com/andrianyablonskyy/thub-agent.git');
+  assert.equal(REPOSITORIES[PACKAGES.client], 'git+https://github.com/andrianyablonskyy/thub-client.git');
+  assert.equal(REPOSITORIES[PACKAGES.coordinator], 'git+ssh://git@github.com/andrianyablonskyy/thub-coordinator.git');
+});
+
+test('latest version: the highest vX.Y.Z tag, numerically; prereleases only if nothing else', async () => {
+  assert.equal(await fetchLatestVersion(PACKAGES.client, { run: lsRemote(['v1.1.9', 'v1.1.13', 'v1.1.10', 'v1.2.0-rc.1', 'x', 'v1']) }), '1.1.13');
+  assert.equal(await fetchLatestVersion(PACKAGES.agent, { run: lsRemote(['v2.0.0-rc.1', 'v2.0.0-rc.2']) }), '2.0.0-rc.2');
+  await assert.rejects(fetchLatestVersion(PACKAGES.agent, { run: lsRemote(['nightly']) }), /no release tags/);
+  await assert.rejects(fetchLatestVersion('left-pad', { run: lsRemote(['v1.0.0']) }), /unknown package/);
+});
+
+test('git runs without prompts; its own reason when it fails', async () => {
+  let seen;
+  await fetchLatestVersion(PACKAGES.agent, {
+    env: { PATH: '/usr/bin' },
+    run: async (cmd, args, opts) => {
+      seen = { cmd, args, opts };
+      return { stdout: 'a\trefs/tags/v1.0.0\n' };
     }
-  };
-}
-
-const E404 = { status: 1, stderr: 'npm error code E404\nnpm error 404 Not Found - GET https://registry.npmjs.org/x/-/x-1.0.18.tgz\n' },
-  OK = { status: 0, stderr: '' };
-
-test('a just-published version that 404s is retried until it installs', (t) => {
-  t.mock.method(process.stderr, 'write', () => true);
-  const npm = fakeNpm([E404, { status: 1, stderr: 'npm error code ETARGET\n' }, OK]);
-  assert.equal(npmInstallGlobal(PACKAGES.coordinator, '1.0.18', npm.opts), 0);
-  assert.equal(npm.calls.length, 3);
-  assert.deepEqual(npm.slept, [30_000, 60_000]);
-  assert.deepEqual(npm.calls[0].args, ['i', '-g', '--prefer-online', '@andrian.yablonskyy/thub-coordinator@1.0.18']);
-  assert.equal(npm.calls[0].stdio[2], 'pipe'); // stderr read to tell "not found" apart, then passed on
+  });
+  assert.deepEqual([seen.cmd, ...seen.args], ['git', 'ls-remote', '--tags', '--refs', 'https://github.com/andrianyablonskyy/thub-agent.git']);
+  assert.equal(seen.opts.env.GIT_TERMINAL_PROMPT, '0');
+  await assert.rejects(fetchLatestVersion(PACKAGES.client, {
+    run: async () => {
+      throw Object.assign(new Error('Command failed'), { stderr: 'fatal: unable to access \'https://github.com/…\': Could not resolve host\n' });
+    }
+  }), /git ls-remote .* failed: fatal: unable to access/);
+  await assert.rejects(fetchLatestVersion(PACKAGES.client, {
+    run: async () => {
+      throw Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' });
+    }
+  }), /git isn't installed/);
 });
 
-test('it gives up after the last retry, and never retries other failures', (t) => {
-  t.mock.method(process.stderr, 'write', () => true);
-  const always404 = fakeNpm(Array(10).fill(E404));
-  assert.equal(npmInstallGlobal(PACKAGES.client, '1.0.18', always404.opts), 1);
-  assert.equal(always404.calls.length, NPM_RETRY_DELAYS_SEC.length + 1);
-
-  const denied = fakeNpm([{ status: 243, stderr: 'npm error code EACCES\n' }]);
-  assert.equal(npmInstallGlobal(PACKAGES.client, '1.0.18', denied.opts), 243);
-  assert.equal(denied.calls.length, 1);
-
-  const noRetries = fakeNpm([E404]); // the Agent: a run never waits for a release
-  assert.equal(npmInstallGlobal(PACKAGES.agent, '1.0.18', { ...noRetries.opts, retryDelaysSec: [] }), 1);
-  assert.equal(noRetries.calls.length, 1);
+test('install: npm i -g --install-links <repository>#v<version>; unknown packages and bad versions refused before npm runs', () => {
+  const calls = [],
+    spawn = (bin, args, opts) => {
+      calls.push({ args, opts });
+      return { status: 0 };
+    };
+  assert.equal(npmInstallGlobal(PACKAGES.client, '1.1.14', { spawn, env: { HOME: '/root' } }), 0);
+  assert.deepEqual(calls[0].args, ['i', '-g', '--install-links', 'git+https://github.com/andrianyablonskyy/thub-client.git#v1.1.14']);
+  assert.equal(calls[0].opts.env.GIT_TERMINAL_PROMPT, '0');
+  assert.throws(() => npmInstallGlobal('left-pad', '1.0.0', { spawn }), /unknown package/);
+  for (const bad of ['latest', '1.1', 'v1.1.14', '1.1.14; rm -rf /']){
+    assert.throws(() => installSpec(PACKAGES.agent, bad), /Invalid version/);
+  }
+  assert.equal(calls.length, 1);
+  assert.equal(installCommand(PACKAGES.agent, '1.1.12'),
+    'sudo npm i -g --install-links git+https://github.com/andrianyablonskyy/thub-agent.git#v1.1.12');
 });
 
-test('unknown packages and bad versions are refused before npm runs', () => {
-  const npm = fakeNpm([OK]);
-  assert.throws(() => npmInstallGlobal('left-pad', '1.0.0', npm.opts), /unknown package/);
-  assert.throws(() => npmInstallGlobal(PACKAGES.client, '1.0; rm -rf /', npm.opts), /Invalid version/);
-  assert.equal(npm.calls.length, 0);
+test('installed from npm: up to the last version there — it can only update from npm', () => {
+  assert.deepEqual(LAST_NPM_VERSIONS, { coordinator: '1.1.23', agent: '1.1.10', client: '1.1.12' });
+  assert.equal(installedFromNpm('client', '1.1.12'), true);
+  assert.equal(installedFromNpm('client', '1.0.18'), true);
+  assert.equal(installedFromNpm('client', '1.1.13'), false);
+  assert.equal(installedFromNpm('agent', '1.1.11'), false);
+  assert.equal(installedFromNpm('agent', null), false);
 });

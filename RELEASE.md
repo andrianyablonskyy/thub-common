@@ -2,6 +2,16 @@
 
 What changed in each release, newest first. `## Unreleased` collects the changes since the version on npm; `bin/publish` turns that heading into the version and date it releases.
 
+## Unreleased
+
+Changes since 1.1.10.
+
+### Changed
+
+- **Version checks and installs use git, not npm.** `fetchLatestVersion(pkg)` returns the highest `vX.Y.Z` tag of the package's repository, read with `git ls-remote`, without prompts. `npmInstallGlobal(pkg, version)` runs `npm i -g --install-links <repository>#v<version>`. The npm retry for "not downloadable yet" is gone: a tag is there as soon as it's pushed.
+- New: `REPOSITORIES`, `installSpec()`, `installCommand()`, `NPM_INSTALL_ARGS`, and `installedFromNpm(app, version)`, which tells installs up to the last npm version (Agent 1.1.10, Client 1.1.12, Coordinator 1.1.23).
+- Removed: `defaultRegistry()` and `NPM_RETRY_DELAYS_SEC`.
+
 ## 1.1.10 — 2026-10-08
 
 Changes since 1.1.10.
