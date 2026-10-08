@@ -23,5 +23,6 @@ module.exports = {
   ...require('./split-args'),
   ...require('./env-list'),
   ...require('./power'),
+  ...require('./report-markdown'),
   ApiClient: require('./api-client').ApiClient
 };
