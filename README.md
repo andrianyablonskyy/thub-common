@@ -2,8 +2,6 @@
 
 Shared code for [TestHub](https://github.com/andrianyablonskyy/thub) — a self-hosted job network that lets CI/CD pipelines and individual developers run firmware tests on real hardware or emulators in a private lab. This package has no server and no CLI of its own; it's the small, dependency-light core that the [Agent](https://github.com/andrianyablonskyy/thub-agent), [Coordinator](https://github.com/andrianyablonskyy/thub-coordinator) and [Client](https://github.com/andrianyablonskyy/thub-client) all depend on, so the three speak exactly the same protocol.
 
-See the [main TestHub repo](https://github.com/andrianyablonskyy/thub) for the full system architecture, deployment diagrams and end-to-end flows.
-
 ## Install
 
 ```bash
