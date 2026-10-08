@@ -15,3 +15,4 @@ Changes since 1.1.5.
 ### Notes
 
 - Nothing existing changed: every earlier export is the same.
+- These release notes (`RELEASE.md`) are now part of the package (listed in `"files"`).
