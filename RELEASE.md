@@ -2,6 +2,14 @@
 
 What changed in each release, newest first. `## Unreleased` collects the changes since the version on npm; `bin/publish` turns that heading into the version and date it releases.
 
+## Unreleased
+
+Changes since 1.1.10.
+
+### Changed
+
+- **Not published to npm any more.** A release is its `vX.Y.Z` tag on GitHub. The Agent, Client and Coordinator require it from there by tag range (`#semver:^…`). `package.json` has `"private": true`.
+
 ## 1.1.7 — 2026-10-08
 
 Changes since 1.1.6.
