@@ -4,7 +4,8 @@
   "description": "Shared job-spec schema, state enums and a thin API client used by the Agent and Client",
   "main": "src/index.js",
   "files": [
-    "src"
+    "src",
+    "RELEASE.md"
   ],
   "license": "SEE LICENSE IN LICENSE.md",
   "author": "Andrian Yablonskyy <andrian.yablonskyy@gmail.com>",
