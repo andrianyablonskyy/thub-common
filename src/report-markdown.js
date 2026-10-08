@@ -84,7 +84,8 @@ function cell(text){
 // ---- JUnit ---------------------------------------------------------------
 
 const decode = (s) => String(s || '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
-  .replace(/&apos;/g, '\'').replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&amp;/g, '&');
+  .replace(/&apos;/g, '\'').replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+  .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&amp;/g, '&');
 
 function attr(tag, name){
   const m = new RegExp(`\\b${name}\\s*=\\s*("([^"]*)"|'([^']*)')`).exec(tag);
@@ -92,8 +93,10 @@ function attr(tag, name){
 }
 
 // [{ suite, name, classname, time, status: passed|failed|error|skipped, message }]
-// from JUnit XML (the common Surefire/pytest/ctest/gtest shape). Enough for a
-// report: no DTD, no namespaces, no entities beyond the five predefined.
+// from JUnit XML — as GoogleTest, CTest, pytest, Maven Surefire and Gradle
+// write it (test/fixtures/junit/). Enough for a report: no DTD, no namespaces.
+// A test that didn't run (GoogleTest's DISABLED_ ones, status="notrun"; CTest's
+// status="disabled") is skipped, not passed.
 function parseJUnit(xml){
   const cases = [],
     text = String(xml || ''),
@@ -102,10 +105,11 @@ function parseJUnit(xml){
     const tag = m[1],
       body = m[3] || '',
       suite = suiteAt.filter((s) => s.at < m.index).pop()?.name || '',
+      notRun = ['notrun', 'disabled'].includes(attr(tag, 'status')),
       outcome = /<failure\b([^>]*)/.exec(body) ? ['failed', /<failure\b([^>]*)/.exec(body)[1]]
         : /<error\b([^>]*)/.exec(body) ? ['error', /<error\b([^>]*)/.exec(body)[1]]
           : /<skipped\b([^>]*)/.exec(body) ? ['skipped', /<skipped\b([^>]*)/.exec(body)[1]]
-            : ['passed', ''],
+            : notRun ? ['skipped', ' message="disabled"'] : ['passed', ''],
       time = Number(attr(tag, 'time'));
     cases.push({
       suite,
@@ -134,7 +138,8 @@ function testTable(cases, { title, open = false, flavor } = {}){
   }
   const rows = cases.slice(0, MAX_ROWS).map((c) => {
       const icon = { passed: '✅', failed: '❌', error: '⚠️', skipped: '⏭️' }[c.status],
-        test = cell(c.classname ? `${c.classname}.${c.name}` : c.name),
+        // CTest's classname is the test's whole name: not twice.
+        test = cell(c.classname && c.classname !== c.name && !c.name.startsWith(`${c.classname}.`) ? `${c.classname}.${c.name}` : c.name),
         time = c.time === null ? '—' : formatDuration(c.time);
       return `| ${icon} | ${test} | ${time} | ${cell(c.message).slice(0, 200)} |`;
     }),

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="lab.UartTest" tests="4" skipped="1" failures="2" errors="0" timestamp="2026-10-08T07:31:11.067Z" hostname="a7a6edcdafce" time="0.01">
+  <properties/>
+  <testcase name="flowControl()" classname="lab.UartTest" time="0.007">
+    <failure message="org.opentest4j.AssertionFailedError: no CTS ==&gt; expected: &lt;2&gt; but was: &lt;3&gt;" type="org.opentest4j.AssertionFailedError">org.opentest4j.AssertionFailedError: no CTS ==&gt; expected: &lt;2&gt; but was: &lt;3&gt;
+	at app//org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at app//org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at app//org.junit.jupiter.api.AssertEquals.failNotEqual(AssertEquals.java:197)
+	at app//org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:150)
+	at app//org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:563)
+	at app//lab.UartTest.flowControl(UartTest.java:6)
+	at java.base@21.0.12.1/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base@21.0.12.1/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base@21.0.12.1/java.util.ArrayList.forEach(ArrayList.java:1596)
+</failure>
+  </testcase>
+  <testcase name="parity()" classname="lab.UartTest" time="0.0">
+    <skipped/>
+  </testcase>
+  <testcase name="echo115200()" classname="lab.UartTest" time="0.001"/>
+  <testcase name="breakSignal()" classname="lab.UartTest" time="0.001">
+    <failure message="java.lang.IllegalStateException: port busy" type="java.lang.IllegalStateException">java.lang.IllegalStateException: port busy
+	at lab.UartTest.breakSignal(UartTest.java:8)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+</failure>
+  </testcase>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
