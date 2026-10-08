@@ -28,7 +28,10 @@ test('hw-devices: device lists validate; bad entries and power control (relays, 
   const bad = (section, re) => assert.match(validateClientConfig('hw', section).errors.join(), re);
   bad({ uarts: [{ path: '/tmp/x' }] }, /hw-devices\.uarts\.0\.path must match/);
   bad({ uarts: [{ baudRate: 9600 }] }, /must match a schema in anyOf/); // neither index nor path
-  bad({ stlinks: Array.from({ length: 9 }, (_, i) => ({ index: (i % 8) + 1 })) }, /must NOT have more than 8 items/);
+  bad({ stlinks: Array.from({ length: 17 }, (_, i) => ({ index: (i % 8) + 1 })) }, /must NOT have more than 16 items/);
+  bad({ uarts: [{ index: 9 }] }, /index must be <= 8/); // /dev/thub/dut1..8
+  assert.equal(validateClientConfig('hw', { uarts: Array.from({ length: 10 }, (_, i) => ({ path: `/dev/thub/x${i}`, label: `dut${i}-uart` })) }).valid, true);
+  bad({ uarts: [{ index: 1, label: 'has space' }] }, /label must match/);
   bad({ relays: [{ channel: 0 }] }, /must NOT have additional properties/);
   bad({ power: { method: 'uhubctl', hub: '1-1', port: 2 } }, /must NOT have additional properties/);
   bad({ usbs: [{ index: 1, devpath: '1.1", RUN+="x' }] }, /devpath must match/);

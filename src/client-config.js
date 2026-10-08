@@ -22,13 +22,17 @@ const Ajv = require('ajv'),
 // The config file's key for an HW Client's devices. Older files call it
 // `hw`, still read (and rewritten as `hw-devices` on the next save).
 const HW_DEVICES = 'hw-devices',
-  MAX_DEVICES = 8,
+  // udev index N names /dev/thub/dut<N>-<kind>: up to 8 boards per Client.
+  MAX_INDEX = 8,
+  // Entries per list: two per board fit (a UART adapter and the board's own
+  // USB serial port both in `uarts`, README §8.6).
+  MAX_DEVICES = 16,
   device = (extra = {}) => ({
     type: 'object',
     additionalProperties: false,
     properties: {
       // udev index N -> /dev/thub/dut<N>-<kind>, or an explicit path.
-      index: { type: 'integer', minimum: 1, maximum: MAX_DEVICES },
+      index: { type: 'integer', minimum: 1, maximum: MAX_INDEX },
       path: { type: 'string', pattern: '^/dev/[A-Za-z0-9._/+-]+$', maxLength: 128 },
       // udev rule for the symlink (README §8.2): the USB port path, plus
       // optional id/subsystem overrides.
@@ -46,7 +50,8 @@ const HW_DEVICES = 'hw-devices',
     additionalProperties: false,
     properties: {
       stlinks: list(device({ serial: { type: 'string', pattern: '^[A-Za-z0-9]{1,64}$' } })),
-      uarts: list(device({ baudRate: { type: 'integer', minimum: 50, maximum: 4000000 } })),
+      // `label`: the tag on its lines in the uart log (default: the device's file name).
+      uarts: list(device({ baudRate: { type: 'integer', minimum: 50, maximum: 4000000 }, label: { type: 'string', pattern: '^[A-Za-z0-9._-]{1,32}$' } })),
       usbs: list(device()),
       // USB port power switched with uhubctl (README §8.7): each port by its
       // hub's location and port number, as `uhubctl` lists them
