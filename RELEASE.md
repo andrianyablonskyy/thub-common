@@ -2,6 +2,15 @@
 
 What changed in each release, newest first. `## Unreleased` collects the changes since the version on npm; `bin/publish` turns that heading into the version and date it releases.
 
+## Unreleased
+
+Changes since 1.1.6.
+
+### Changed
+
+- **Client device lists hold up to 16 entries** (`hw-devices.stlinks`, `uarts`, `usbs`; was 8): enough for eight boards with two serial ports each — a UART adapter and the board's own USB serial port, both in `uarts`. `index` (→ `/dev/thub/dut<N>-…`) stays 1–8.
+- A `uarts` entry may have a **`label`** (`[A-Za-z0-9._-]`, up to 32): the tag on its lines in the job's log.
+
 ## 1.1.6 — 2026-10-08
 
 Changes since 1.1.5.
@@ -14,8 +23,6 @@ Changes since 1.1.5.
 
 ### Changed
 
-- **Client device lists hold up to 16 entries** (`hw-devices.stlinks`, `uarts`, `usbs`; was 8): enough for eight boards with two serial ports each — a UART adapter and the board's own USB serial port, both in `uarts`. `index` (→ `/dev/thub/dut<N>-…`) stays 1–8.
-- A `uarts` entry may have a **`label`** (`[A-Za-z0-9._-]`, up to 32): the tag on its lines in the job's log.
 
 ### Notes
 
