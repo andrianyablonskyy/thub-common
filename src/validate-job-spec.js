@@ -26,38 +26,11 @@ const validateFn = ajv.compile(jobSpecSchema);
  * Returns { valid, spec, errors }.
  */
 function validateJobSpec(spec){
-  const legacy = legacyShapeError(spec) || removedFieldsError(spec);
-  if (legacy){
-    return { valid: false, spec: JSON.parse(JSON.stringify(spec ?? {})), errors: [legacy] };
-  }
   const clone = JSON.parse(JSON.stringify(spec ?? {})),
     schemaValid = validateFn(clone),
     errors = schemaValid ? [] : (validateFn.errors || []).map((e) => `${e.instancePath || '/'} ${e.message}`);
   errors.push(...crossFieldErrors(clone));
   return { valid: errors.length === 0, spec: clone, errors };
-}
-
-// Specs from an Agent older than --command (firmware/tests fields) can't be
-// translated faithfully (they relied on the Client flashing and on
-// run-tests.sh) — say what to do instead of listing unknown fields.
-function legacyShapeError(spec){
-  if (spec && typeof spec === 'object' && ('firmware' in spec || 'tests' in spec) && !('command' in spec)){
-    return '/ this job spec is from an older Agent (firmware/tests fields) — update the Agent (thub self-update) ' +
-      'and use --command and --download-file';
-  }
-  return null;
-}
-
-// `git` (--git-repo/--depth/--git-options) and `image` (--docker-image) are
-// gone: the Client no longer clones or runs containers itself. Said plainly
-// rather than as unknown properties.
-function removedFieldsError(spec){
-  const removed = ['git', 'image'].filter((k) => spec && typeof spec === 'object' && spec[k] !== undefined);
-  if (!removed.length){
-    return null;
-  }
-  return `/ ${removed.join(', ')}: --git-repo, --git-options, --depth and --docker-image are no longer supported — ` +
-    'clone the repository or run docker in --command, passing credentials with --env (update the Agent: thub self-update)';
 }
 
 // Rules across fields, spelled out here rather than as schema if/then,

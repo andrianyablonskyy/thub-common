@@ -1,6 +1,6 @@
 {
   "name": "@andrian.yablonskyy/thub-common",
-  "version": "1.1.12",
+  "version": "2.0.0",
   "description": "Shared job-spec schema, state enums and a thin API client used by the Agent and Client",
   "main": "src/index.js",
   "files": [

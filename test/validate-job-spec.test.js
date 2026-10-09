@@ -41,10 +41,12 @@ test('rejects a spec with no target type, and unknown top-level fields', () => {
   assert.ok(validateJobSpec(minimal({ run: 'x' })).errors.some((e) => e.includes('additional')));
 });
 
-test('an old-Agent spec (firmware/tests) gets an "update the Agent" error', () => {
-  const { valid, errors } = validateJobSpec({ target: { type: 'hw' }, firmware: { url: 'https://x/a' }, tests: { url: 'https://x/t' } });
-  assert.equal(valid, false);
-  assert.match(errors.join(), /older Agent.*thub self-update/);
+test('fields of long-gone Agents (firmware/tests, git, image) are unknown properties', () => {
+  for (const extra of [{ firmware: { url: 'https://x/a' }, tests: { url: 'https://x/t' } }, { git: { url: 'https://git.lab/t.git' } }, { image: 'alpine' }]){
+    const { valid, errors } = validateJobSpec({ target: { type: 'sw' }, command: 'x', ...extra });
+    assert.equal(valid, false);
+    assert.match(errors.join(), /must NOT have additional properties/);
+  }
 });
 
 test('accepts an optional user label (`thub run --user`, §7.1), not an empty one', () => {
@@ -63,14 +65,6 @@ test('downloads: any number of http(s) URLs', () => {
   assert.equal(validateJobSpec(minimal({ downloads: [{ url: 'https://x/app.bin' }, { url: 'http://localhost/t.tgz' }] })).valid, true);
   assert.match(validateJobSpec(minimal({ downloads: [{ url: 'not a url' }] })).errors.join(), /format "uri"/);
   assert.equal(validateJobSpec(minimal({ downloads: [{}] })).valid, false);
-});
-
-test('git / image (--git-repo, --docker-image) are gone: refused with what to do instead', () => {
-  for (const extra of [{ git: { url: 'https://git.lab/t.git' } }, { image: 'alpine' }]){
-    const { valid, errors } = validateJobSpec({ target: { type: 'sw' }, command: 'x', ...extra });
-    assert.equal(valid, false);
-    assert.match(errors.join(), /no longer supported — clone the repository or run docker in --command, passing credentials with --env/);
-  }
 });
 
 test('env: any NAME=string pairs — no name is special, except the Client\'s own', () => {

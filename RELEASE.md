@@ -2,6 +2,15 @@
 
 What changed in each release, newest first. `## Unreleased` collects the changes since the version on npm; `bin/publish` turns that heading into the version and date it releases.
 
+## Unreleased
+
+**2.0.0: a major version**, because exports are removed. The Agent, Client and Coordinator now require `^2.0.0`; released ones keep resolving 1.x (the Client up to 1.1.15 calls `withoutPowerControl`).
+
+### Removed
+
+- **Compatibility with long-gone Agents and Clients.** `validateJobSpec` no longer gives a dedicated message for the old `firmware` / `tests`, `git` and `image` fields: they fail as unknown properties, like any other. The Client config helpers no longer read a `hw` section as `hw-devices` or leave out `relays`, `power`, `sw`, `artifactory` and `sources`: `hwDevicesOf` reads `hw-devices` only, `shareableClientConfigFile` returns a copy, and an old field in `hw-devices` fails the schema. `withoutPowerControl` is gone.
+- Unused: `splitArgs` (`split-args.js`), `isValidCron` (use `parseCron`), and the exports `ENV_NAME_PATTERN`, `SCHEDULABLE_RESOURCE_STATES` and `JOB_SOURCES`.
+
 ## 1.1.12 — 2026-10-09
 
 Changes since 1.1.11.

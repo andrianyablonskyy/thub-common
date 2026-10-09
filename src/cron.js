@@ -106,16 +106,6 @@ function parseCron(expression){
   };
 }
 
-function isValidCron(expression){
-  try {
-    parseCron(expression);
-    return true;
-  }
-  catch {
-    return false;
-  }
-}
-
 // Wall-clock fields of `date` in `timeZone` (omitted: this process's zone).
 function wallClock(date, timeZone){
   if (!timeZone){
@@ -168,4 +158,4 @@ function nextCronRun(cron, from = new Date(), { timeZone, withinDays = 366 } = {
   return null;
 }
 
-module.exports = { parseCron, isValidCron, cronMatches, nextCronRun };
+module.exports = { parseCron, cronMatches, nextCronRun };

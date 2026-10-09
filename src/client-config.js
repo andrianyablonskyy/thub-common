@@ -19,8 +19,7 @@ const Ajv = require('ajv'),
   addFormats = require('ajv-formats'),
   { MAX_POWER_PORTS } = require('./power');
 
-// The config file's key for an HW Client's devices. Older files call it
-// `hw`, still read (and rewritten as `hw-devices` on the next save).
+// The config file's key for an HW Client's devices.
 const HW_DEVICES = 'hw-devices',
   // udev index N names /dev/thub/dut<N>-<kind>: up to 8 boards per Client.
   MAX_INDEX = 8,
@@ -85,24 +84,9 @@ addFormats(ajv);
 validators.hw = ajv.compile(hwSchema);
 validators.sw = ajv.compile(swSchema);
 
-// The hw-devices section of a config file (or its older name, `hw`).
+// The hw-devices section of a config file.
 function hwDevicesOf(file){
-  return file?.[HW_DEVICES] !== undefined ? file[HW_DEVICES] : file?.hw;
-}
-
-// An hw-devices section without the older power control Clients no longer
-// have (relays, power — relay boards, and uhubctl before usbPower), so a config file that still
-// has them reports, saves and imports without them. Returns
-// { section, dropped } (dropped: the names left out).
-function withoutPowerControl(hw){
-  if (!hw || typeof hw !== 'object' || Array.isArray(hw)){
-    return { section: hw, dropped: [] };
-  }
-  const { relays, power, ...section } = hw;
-  return {
-    section,
-    dropped: [...(relays !== undefined ? [`${HW_DEVICES}.relays`] : []), ...(power !== undefined ? [`${HW_DEVICES}.power`] : [])]
-  };
+  return file?.[HW_DEVICES];
 }
 
 // { valid, errors } for a Client's editable section: an HW Client's
@@ -150,25 +134,11 @@ const IMPORT_IGNORED_FIELDS = ['joinKey', 'coordinatorUrl', 'name'],
   // Client's identity (clientId) and every file or directory path (tokenFile,
   // socketPath, workDir, varDir, …): taken from another Client they'd share
   // its token, socket or state.
-  isHostBound = (key) => key === 'clientId' || /(File|Path|Dir)$/.test(key),
+  isHostBound = (key) => key === 'clientId' || /(File|Path|Dir)$/.test(key);
 
-  // Sections older Clients had and current ones ignore — dropped from
-  // Export (`artifactory` held a token, `sw` a registry password) and
-  // listed as ignored on Import.
-  LEGACY_SECTIONS = ['artifactory', 'sources', 'sw'];
-
-// A config file as it's shared (Export, and what an Import may carry): the
-// legacy sections dropped, an older `hw` section under its new name.
+// A config file as it's shared (Export, and what an Import may carry): a copy.
 function shareableClientConfigFile(file){
-  const out = JSON.parse(JSON.stringify(file || {})),
-    hw = hwDevicesOf(out);
-  for (const key of [...LEGACY_SECTIONS, 'hw']){
-    delete out[key];
-  }
-  if (hw !== undefined){
-    out[HW_DEVICES] = hw;
-  }
-  return out;
+  return JSON.parse(JSON.stringify(file || {}));
 }
 
 // Checks an imported config file for a `type` Client and splits it into
@@ -190,13 +160,10 @@ function importClientConfigFile(type, file){
     ignored = [],
     fields = {},
     errors = [];
-  ignored.push(...LEGACY_SECTIONS.filter((key) => file[key] !== undefined));
   let section = type === 'sw' ? {} : null;
   if (shared[HW_DEVICES] !== undefined){
     if (type === 'hw'){
-      const { section: hw, dropped } = withoutPowerControl(shared[HW_DEVICES]);
-      section = hw;
-      ignored.push(...dropped);
+      section = shared[HW_DEVICES];
       errors.push(...validateClientConfig('hw', section).errors);
     }
     else {
@@ -218,8 +185,6 @@ module.exports = {
   validateClientConfig,
   shareableClientConfigFile,
   importClientConfigFile,
-  withoutPowerControl,
   hwDevicesOf,
-  HW_DEVICES_SECTION: HW_DEVICES,
-  CLIENT_CONFIG_IMPORT_IGNORED: IMPORT_IGNORED_FIELDS
+  HW_DEVICES_SECTION: HW_DEVICES
 };

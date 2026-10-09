@@ -114,4 +114,4 @@ const ENV_NAME_PATTERN = '^[A-Za-z_][A-Za-z0-9_]*$',
     }
   };
 
-module.exports = { jobSpecSchema, ENV_NAME_PATTERN };
+module.exports = { jobSpecSchema };

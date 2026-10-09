@@ -15,7 +15,7 @@
 
 const test = require('node:test'),
   assert = require('node:assert/strict'),
-  { parseCron, isValidCron, cronMatches, nextCronRun } = require('../src/cron');
+  { parseCron, cronMatches, nextCronRun } = require('../src/cron');
 
 const UTC = { timeZone: 'UTC' },
   at = (iso) => new Date(iso),
@@ -28,7 +28,7 @@ test('parses fields, lists, ranges, steps, names and macros; rejects bad input r
   assert.deepEqual([...c.month], [1, 2, 3]);
   assert.deepEqual([...c.dow], [1, 2, 3, 4, 5]);
   assert.ok(parseCron('0 0 * * 7').dow.has(0)); // 7 = Sunday too
-  assert.equal(isValidCron('@daily'), true);
+  assert.ok(parseCron('@daily'));
   for (const [bad, why]of [['', /5 fields/], ['0 3 * *', /5 fields/], ['60 3 * * *', /minute: 60 is out of range/],
     ['0 25 * * *', /hour/], ['0 3 * * funday', /day of week/], ['0 3 5-1 * *', /backwards/], ['*/0 * * * *', /bad step/]]){
     assert.throws(() => parseCron(bad), why, bad);

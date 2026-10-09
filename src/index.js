@@ -20,7 +20,6 @@ module.exports = {
   ...require('./datetime'),
   ...require('./cron'),
   ...require('./client-config'),
-  ...require('./split-args'),
   ...require('./env-list'),
   ...require('./power'),
   ...require('./report-markdown'),

@@ -22,8 +22,6 @@ const RESOURCE_STATES = Object.freeze({
     MAINTENANCE: 'MAINTENANCE'
   }),
 
-  SCHEDULABLE_RESOURCE_STATES = new Set([RESOURCE_STATES.IDLE]),
-
   BUSY_SOURCES = Object.freeze({
     CI: 'ci',
     CLI: 'cli',
@@ -60,11 +58,6 @@ const RESOURCE_STATES = Object.freeze({
     JOB_STATES.RUNNING
   ]),
 
-  JOB_SOURCES = Object.freeze({
-    CI: 'ci',
-    CLI: 'cli'
-  }),
-
   // §7 Agent CLI exit codes
   EXIT_CODES = Object.freeze({
     PASSED: 0,
@@ -96,12 +89,10 @@ function exitCodeForJobState(state){
 
 module.exports = {
   RESOURCE_STATES,
-  SCHEDULABLE_RESOURCE_STATES,
   BUSY_SOURCES,
   JOB_STATES,
   TERMINAL_JOB_STATES,
   ACTIVE_JOB_STATES,
-  JOB_SOURCES,
   EXIT_CODES,
   exitCodeForJobState
 };
