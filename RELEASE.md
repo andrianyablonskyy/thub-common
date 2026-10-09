@@ -2,6 +2,14 @@
 
 What changed in each release, newest first. `## Unreleased` collects the changes since the version on npm; `bin/publish` turns that heading into the version and date it releases.
 
+## Unreleased
+
+Changes since 1.1.11.
+
+### Changed
+
+- **Back on npm.** Version checks and installs of the Agent and Client use npm again: `fetchLatestVersion(pkg, { registry })` reads the npm registry's `latest`, and `npmInstallGlobal(pkg, version)` runs `npm i -g --prefer-online <pkg>@<version>`, retrying a just-published version that isn't downloadable yet. 1.1.11's git-based `REPOSITORIES`, `installSpec`, `installCommand` and `installedFromNpm` are gone. 1.1.10 and 1.1.11 were only released as git tags.
+
 ## 1.1.11 — 2026-10-08
 
 Changes since 1.1.10.

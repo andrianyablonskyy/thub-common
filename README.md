@@ -57,7 +57,7 @@ await client.streamEvents(`/jobs/${job.jobId}/logs/stream`, {
 
 ### Version checks and self-update helpers
 
-`PACKAGES` (the Coordinator/Agent/Client package names) and `REPOSITORIES` (where each is released: its git repository's `vX.Y.Z` tags; nothing is on npm), `fetchLatestVersion(pkg)` (the highest release tag, with `git ls-remote`), `compareVersions`/`isNewer`/`isValidVersion` (strict `X.Y.Z[-pre]`), `npmBin()` (the npm next to the running node), `npmInstallGlobal(pkg, version)` and `installSpec`/`installCommand` (`npm i -g --install-links <repository>#v<version>`, only for the three TestHub packages, only a valid version), and `installedFromNpm(app, version)` (up to the last version on npm: it can only update from npm).
+`PACKAGES` (the Coordinator/Agent/Client npm names), `fetchLatestVersion(pkg, { registry })` (the `latest` dist-tag from the npm registry), `compareVersions`/`isNewer`/`isValidVersion` (strict `X.Y.Z[-pre]`), `npmBin()` (the npm next to the running node) and `npmInstallGlobal(pkg, version)` (only for the three TestHub packages, only a valid version).
 
 ## Development
 
