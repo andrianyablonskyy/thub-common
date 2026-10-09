@@ -2,7 +2,7 @@
 
 What changed in each release, newest first. `## Unreleased` collects the changes since the version on npm; `bin/publish` turns that heading into the version and date it releases.
 
-## Unreleased
+## 2.0.0 — 2026-10-09
 
 **2.0.0: a major version**, because exports are removed. The Agent, Client and Coordinator now require `^2.0.0`; released ones keep resolving 1.x (the Client up to 1.1.15 calls `withoutPowerControl`).
 
