@@ -2,6 +2,12 @@
 
 What changed in each release, newest first. `## Unreleased` collects the changes since the version on npm; `bin/publish` turns that heading into the version and date it releases.
 
+## Unreleased
+
+### Added
+
+- **udev filters for HW Client devices** (README §8.6). An `hw-devices` ST-Link, UART or DUT USB entry can have a `udev` filter string. The Client gives the matching device the `/dev/thub/dut<index>-<kind>` symlink. `parseUdevFilter` checks and normalizes it: matches only (`KEY=="value"` or `KEY!="value"` on SUBSYSTEM(S), KERNEL(S), DRIVER(S), DEVPATH, TAG(S), ACTION, `ATTR{…}`, `ATTRS{…}`, `ENV{…}`), never an assignment, `RUN`, `PROGRAM`, `IMPORT` or `$` substitution, because the rule is installed as root. `validateClientConfig` applies it, and a `udev` filter needs an `index`. `udevFilterOf(entry, kind)` turns an older entry's `devpath` / `vendorId` / `productId` / `subsystem` into the same filter. `KIND_DEFAULTS` and `LIST_KINDS` moved here from the Client.
+
 ## 2.0.0 — 2026-10-09
 
 **2.0.0: a major version**, because exports are removed. The Agent, Client and Coordinator now require `^2.0.0`; released ones keep resolving 1.x (the Client up to 1.1.15 calls `withoutPowerControl`).

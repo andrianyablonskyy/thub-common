@@ -17,7 +17,8 @@
 
 const Ajv = require('ajv'),
   addFormats = require('ajv-formats'),
-  { MAX_POWER_PORTS } = require('./power');
+  { MAX_POWER_PORTS } = require('./power'),
+  { parseUdevFilter } = require('./udev-filter');
 
 // The config file's key for an HW Client's devices.
 const HW_DEVICES = 'hw-devices',
@@ -33,15 +34,21 @@ const HW_DEVICES = 'hw-devices',
       // udev index N -> /dev/thub/dut<N>-<kind>, or an explicit path.
       index: { type: 'integer', minimum: 1, maximum: MAX_INDEX },
       path: { type: 'string', pattern: '^/dev/[A-Za-z0-9._/+-]+$', maxLength: 128 },
-      // udev rule for the symlink (README §8.2): the USB port path, plus
-      // optional id/subsystem overrides.
+      // The udev filter of the device: the Client's udev rule gives it the
+      // /dev/thub/dut<index>-<kind> symlink (README §8.6). Checked further
+      // by parseUdevFilter (validateClientConfig).
+      udev: { type: 'string', minLength: 1, maxLength: 512 },
+      // Older entries' rule: the USB port path, plus optional id/subsystem
+      // overrides (udevFilterOf turns them into a filter).
       devpath: { type: 'string', pattern: '^[A-Za-z0-9.:+/-]+$', maxLength: 64 },
       vendorId: { type: 'string', pattern: '^[0-9a-fA-F]{4}$' },
       productId: { type: 'string', pattern: '^[0-9a-fA-F]{4}$' },
       subsystem: { enum: ['usb', 'tty'] },
       ...extra
     },
-    anyOf: [{ required: ['index'] }, { required: ['path'] }, ...(extra.serial ? [{ required: ['serial'] }] : [])]
+    anyOf: [{ required: ['index'] }, { required: ['path'] }, ...(extra.serial ? [{ required: ['serial'] }] : [])],
+    // The filter's symlink is named by the index.
+    dependencies: { udev: ['index'] }
   }),
   list = (item) => ({ type: 'array', maxItems: MAX_DEVICES, items: item }),
   hwSchema = {
@@ -99,15 +106,29 @@ function validateClientConfig(type, section){
   if (!section || typeof section !== 'object' || Array.isArray(section)){
     return { valid: false, errors: [`the ${type === 'hw' ? HW_DEVICES : type} section must be an object`] };
   }
-  const valid = validate(section);
-  return {
-    valid,
-    errors: valid
-      ? []
-      : validate.errors.map((e) => (type === 'sw'
-        ? 'an SW Client has no settings of its own (the sw section is gone)'
+  if (!validate(section)){
+    return {
+      valid: false,
+      errors: validate.errors.map((e) => (type === 'sw'
+        ? 'an SW Client has no settings of its own'
         : `${HW_DEVICES}${e.instancePath.replace(/\//g, '.')} ${e.message}`))
-  };
+    };
+  }
+  // udev filters go into a root-owned udev rule on the Client: matches only.
+  const errors = [];
+  for (const list of ['stlinks', 'uarts', 'usbs']){
+    (section[list] || []).forEach((entry, i) => {
+      if (entry.udev !== undefined){
+        try {
+          parseUdevFilter(entry.udev);
+        }
+        catch (err){
+          errors.push(`${HW_DEVICES}.${list}.${i}.udev: ${err.message}`);
+        }
+      }
+    });
+  }
+  return { valid: errors.length === 0, errors };
 }
 
 // ── The whole config file: dashboard Export / Import (README §10) ──────────
