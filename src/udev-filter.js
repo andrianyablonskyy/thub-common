@@ -35,12 +35,19 @@ const LIST_KINDS = { stlinks: 'stlink', uarts: 'uart', usbs: 'usb', storages: 's
   KEY = /^(?:KERNELS?|SUBSYSTEMS?|DRIVERS?|DEVPATH|TAGS?|ACTION|(?:ATTRS?|ENV)\{[A-Za-z0-9_.-]{1,64}\})$/,
   // One `KEY=="value"` or `KEY!="value"`: a value without quotes,
   // backslashes, line breaks or `$` (udev substitutions).
-  TERM = /^\s*([A-Z]+(?:\{[^}]*\})?)\s*(==|!=)\s*"([^"\\\r\n$]{0,128})"\s*$/;
+  TERM = /^\s*([A-Z]+(?:\{[^}]*\})?)\s*(==|!=)\s*"([^"\\\r\n$]{0,128})"\s*$/,
+  // The one assignment allowed: `SYMLINK+="path"`, the device's own path
+  // under /dev instead of thub/dut<N>-<kind>.
+  SYMLINK_TERM = /^\s*SYMLINK\s*\+=\s*"([^"\\\r\n$]*)"\s*$/,
+  // Relative, inside /dev: path segments of [A-Za-z0-9._+-], none starting
+  // with a dot (so no `.` or `..`), up to 128 characters.
+  SYMLINK_PATH = /^[A-Za-z0-9_+-][A-Za-z0-9._+-]*(?:\/[A-Za-z0-9_+-][A-Za-z0-9._+-]*)*$/;
 
-// The filter, normalized (`KEY=="value", …`), or throws saying what's wrong.
-// Commas inside values can't split terms: values can't hold quotes, so the
-// string is split on the commas between quoted values.
-function parseUdevFilter(filter){
+// { match, symlink } of a filter: its matches, normalized (`KEY=="value", …`),
+// and its optional `SYMLINK+="path"` (null without one); or throws saying
+// what's wrong. Commas inside values can't split terms: values can't hold
+// quotes, so the string is split on the commas between quoted values.
+function splitUdevFilter(filter){
   if (typeof filter !== 'string' || !filter.trim()){
     throw new Error('the udev filter is empty');
   }
@@ -53,16 +60,52 @@ function parseUdevFilter(filter){
   if (!terms.length){
     throw new Error('the udev filter is empty');
   }
-  return terms.map((term) => {
+  let symlink = null;
+  const matches = [];
+  for (const term of terms){
+    const link = SYMLINK_TERM.exec(term);
+    if (link){
+      if (symlink !== null){
+        throw new Error('a udev filter has one SYMLINK+="…" at most');
+      }
+      if (link[1].length > 128 || !SYMLINK_PATH.test(link[1])){
+        throw new Error(`SYMLINK+="${link[1]}" must be a path inside /dev: segments of [A-Za-z0-9._+-], none starting with a dot`);
+      }
+      symlink = link[1];
+      continue;
+    }
     const m = TERM.exec(term);
     if (!m){
-      throw new Error(`"${term.trim()}" isn't a udev match (KEY=="value" or KEY!="value", the value without quotes, \\ or $)`);
+      throw new Error(`"${term.trim()}" isn't a udev match (KEY=="value" or KEY!="value", the value without quotes, \\ or $; or one SYMLINK+="path")`);
     }
     if (!KEY.test(m[1])){
       throw new Error(`${m[1]} can't be used in a udev filter: only SUBSYSTEM(S), KERNEL(S), DRIVER(S), DEVPATH, TAG(S), ACTION, ATTR{…}, ATTRS{…} and ENV{…}`);
     }
-    return `${m[1]}${m[2]}"${m[3]}"`;
-  }).join(', ');
+    matches.push(`${m[1]}${m[2]}"${m[3]}"`);
+  }
+  if (!matches.length){
+    throw new Error('the udev filter has no match: SYMLINK+="…" alone would apply to every device');
+  }
+  return { match: matches.join(', '), symlink };
+}
+
+// The filter normalized: its matches, then its SYMLINK+="…" if it has one.
+function parseUdevFilter(filter){
+  const { match, symlink } = splitUdevFilter(filter);
+  return symlink === null ? match : `${match}, SYMLINK+="${symlink}"`;
+}
+
+// The symlink an entry's device gets, inside /dev: its filter's own
+// SYMLINK+="…" (which overrides the default), else thub/dut<index>-<kind>;
+// null when neither (an explicit path set by hand, a probe by serial).
+function deviceSymlinkOf(entry, kind){
+  if (entry?.udev){
+    const { symlink } = splitUdevFilter(entry.udev);
+    if (symlink !== null){
+      return symlink;
+    }
+  }
+  return Number.isInteger(entry?.index) ? `thub/dut${entry.index}-${kind}` : null;
 }
 
 // The udev filter of an hw-devices entry: its own `udev`, else one made from
@@ -86,4 +129,4 @@ function udevFilterOf(entry, kind){
     `ATTRS{idProduct}=="${String(entry.productId ?? defaults.productId).toLowerCase()}", ${devpathKey}=="${entry.devpath}"`;
 }
 
-module.exports = { parseUdevFilter, udevFilterOf, LIST_KINDS, KIND_DEFAULTS };
+module.exports = { parseUdevFilter, splitUdevFilter, deviceSymlinkOf, udevFilterOf, LIST_KINDS, KIND_DEFAULTS };

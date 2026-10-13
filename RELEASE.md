@@ -2,6 +2,12 @@
 
 What changed in each release, newest first. `## Unreleased` collects the changes since the version on npm; `bin/publish` turns that heading into the version and date it releases.
 
+## Unreleased
+
+### Added
+
+- **An optional `SYMLINK+="path"` in a udev filter**: the device's own path under `/dev`, which overrides `thub/dut<index>-<kind>`. It must be a relative path inside `/dev` with no `.` or `..` segments, and there's one per filter; a filter with no match is refused. `splitUdevFilter(filter)` returns `{ match, symlink }`, and `deviceSymlinkOf(entry, kind)` returns the link an entry's device gets. `validateClientConfig` refuses two entries claiming the same link.
+
 ## 2.1.0 — 2026-10-13
 
 ### Added

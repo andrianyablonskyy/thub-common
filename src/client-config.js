@@ -18,7 +18,7 @@
 const Ajv = require('ajv'),
   addFormats = require('ajv-formats'),
   { MAX_POWER_PORTS } = require('./power'),
-  { parseUdevFilter, LIST_KINDS } = require('./udev-filter');
+  { parseUdevFilter, deviceSymlinkOf, LIST_KINDS } = require('./udev-filter');
 
 // The config file's key for an HW Client's devices.
 const HW_DEVICES = 'hw-devices',
@@ -117,16 +117,29 @@ function validateClientConfig(type, section){
         : `${HW_DEVICES}${e.instancePath.replace(/\//g, '.')} ${e.message}`))
     };
   }
-  // udev filters go into a root-owned udev rule on the Client: matches only.
-  const errors = [];
-  for (const list of Object.keys(LIST_KINDS)){
+  // udev filters go into a root-owned udev rule on the Client: matches, and
+  // one SYMLINK+="…" at most. No two entries may claim the same symlink.
+  const errors = [],
+    claimed = new Map();
+  for (const [list, kind]of Object.entries(LIST_KINDS)){
     (section[list] || []).forEach((entry, i) => {
+      const field = `${HW_DEVICES}.${list}.${i}`;
       if (entry.udev !== undefined){
         try {
           parseUdevFilter(entry.udev);
         }
         catch (err){
-          errors.push(`${HW_DEVICES}.${list}.${i}.udev: ${err.message}`);
+          errors.push(`${field}.udev: ${err.message}`);
+          return;
+        }
+      }
+      const symlink = deviceSymlinkOf(entry, kind);
+      if (symlink && entry.udev !== undefined){
+        if (claimed.has(symlink)){
+          errors.push(`${field}.udev: /dev/${symlink} is already ${claimed.get(symlink)}'s`);
+        }
+        else {
+          claimed.set(symlink, field);
         }
       }
     });

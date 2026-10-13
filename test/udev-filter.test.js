@@ -33,7 +33,13 @@ test('anything that could do more than match is refused: the rule is installed a
     ['PROGRAM=="/bin/true"', /PROGRAM can't be used/],
     ['IMPORT{program}=="x"', /IMPORT\{program\} can't be used/],
     ['SUBSYSTEM="usb"', /isn't a udev match/],
-    ['SYMLINK+="evil"', /isn't a udev match/],
+    ['SYMLINK+="evil"', /no match: SYMLINK\+="…" alone would apply to every device/],
+    ['SUBSYSTEM=="tty", SYMLINK="evil"', /isn't a udev match/],
+    ['SUBSYSTEM=="tty", SYMLINK+="../sda"', /must be a path inside \/dev/],
+    ['SUBSYSTEM=="tty", SYMLINK+="/etc/passwd"', /must be a path inside \/dev/],
+    ['SUBSYSTEM=="tty", SYMLINK+="lab/.hidden"', /must be a path inside \/dev/],
+    ['SUBSYSTEM=="tty", SYMLINK+="a b"', /must be a path inside \/dev/],
+    ['SUBSYSTEM=="tty", SYMLINK+="a", SYMLINK+="b"', /one SYMLINK\+="…" at most/],
     ['GOTO=="end"', /GOTO can't be used/],
     ['ATTRS{serial}=="a\\"b"', /isn't a udev match/],
     ['ATTRS{serial}=="$env{HOME}"', /isn't a udev match/],
@@ -68,4 +74,22 @@ test('storages: a mass storage entry\'s filter matches the whole disk, not its p
     'SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="374e", ATTRS{devpath}=="1.3"');
   assert.deepEqual(validateClientConfig('hw', { storages: [{ index: 1, udev: 'SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ATTRS{devpath}=="1.3"' }] }),
     { valid: true, errors: [] });
+});
+
+test('an optional SYMLINK+="path" names the device itself, instead of thub/dut<N>-<kind>', () => {
+  const { splitUdevFilter, deviceSymlinkOf } = require('../src');
+  assert.deepEqual(splitUdevFilter('SYMLINK += "lab/nucleo-f401re-uart" , SUBSYSTEM=="tty", ATTRS{serial}=="A9"'),
+    { match: 'SUBSYSTEM=="tty", ATTRS{serial}=="A9"', symlink: 'lab/nucleo-f401re-uart' });
+  assert.equal(parseUdevFilter('SYMLINK+="ttyNucleo", KERNEL=="ttyACM*"'), 'KERNEL=="ttyACM*", SYMLINK+="ttyNucleo"');
+  assert.equal(deviceSymlinkOf({ index: 2, udev: 'KERNEL=="ttyACM*", SYMLINK+="ttyNucleo"' }, 'uart'), 'ttyNucleo');
+  assert.equal(deviceSymlinkOf({ index: 2, udev: 'KERNEL=="ttyACM*"' }, 'uart'), 'thub/dut2-uart');
+  assert.equal(deviceSymlinkOf({ path: '/dev/ttyUSB0' }, 'uart'), null);
+
+  // Two entries can't claim the same /dev path — a SYMLINK of its own or another's default.
+  assert.match(validateClientConfig('hw', {
+    uarts: [{ index: 1, udev: 'KERNEL=="ttyACM0", SYMLINK+="lab/console"' }, { index: 2, udev: 'KERNEL=="ttyACM1", SYMLINK+="lab/console"' }]
+  }).errors.join(), /hw-devices\.uarts\.1\.udev: \/dev\/lab\/console is already hw-devices\.uarts\.0's/);
+  assert.match(validateClientConfig('hw', {
+    uarts: [{ index: 1, udev: 'KERNEL=="ttyACM0"' }, { index: 2, udev: 'KERNEL=="ttyACM1", SYMLINK+="thub/dut1-uart"' }]
+  }).errors.join(), /\/dev\/thub\/dut1-uart is already hw-devices\.uarts\.0's/);
 });
