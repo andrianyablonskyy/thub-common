@@ -15,7 +15,8 @@
 'use strict';
 
 // hw-devices list -> the kind in its symlink name (dut<N>-<kind>).
-const LIST_KINDS = { stlinks: 'stlink', uarts: 'uart', usbs: 'usb' },
+// storages: USB mass storage, e.g. an ST-Link's drag-and-drop flashing drive.
+const LIST_KINDS = { stlinks: 'stlink', uarts: 'uart', usbs: 'usb', storages: 'storage' },
 
   // What an entry without its own ids matches: common adapters. UARTs match
   // the tty node (what serialport opens), not the raw USB device; ST-Links
@@ -23,7 +24,8 @@ const LIST_KINDS = { stlinks: 'stlink', uarts: 'uart', usbs: 'usb' },
   KIND_DEFAULTS = {
     stlink: { subsystem: 'usb', vendorId: '0483', productId: '3748' }, // ST-Link/V2
     uart: { subsystem: 'tty', vendorId: '0403', productId: '6001' }, // FTDI FT232R
-    usb: { subsystem: 'usb', vendorId: '0483', productId: '5740' } // STM32 CDC (DUT's own USB)
+    usb: { subsystem: 'usb', vendorId: '0483', productId: '5740' }, // STM32 CDC (DUT's own USB)
+    storage: { subsystem: 'block', vendorId: '0483', productId: '374b' } // ST-Link/V2-1 mass storage
   },
 
   MAX_LENGTH = 512,
@@ -76,10 +78,11 @@ function udevFilterOf(entry, kind){
   const defaults = KIND_DEFAULTS[kind],
     subsystem = entry.subsystem ?? defaults.subsystem,
     // ATTR{devpath} for a usb device itself, ATTRS{devpath} (a parent) for a
-    // tty: ATTRS keys must all match on the same parent, and idVendor,
+    // tty or a disk (the whole disk only, not its partitions): ATTRS keys must all match on the same parent, and idVendor,
     // idProduct and devpath all live on the usb_device.
     devpathKey = subsystem === 'usb' ? 'ATTR{devpath}' : 'ATTRS{devpath}';
-  return `SUBSYSTEM=="${subsystem}", ATTRS{idVendor}=="${String(entry.vendorId ?? defaults.vendorId).toLowerCase()}", ` +
+  return `SUBSYSTEM=="${subsystem}", ${subsystem === 'block' ? 'ENV{DEVTYPE}=="disk", ' : ''}` +
+    `ATTRS{idVendor}=="${String(entry.vendorId ?? defaults.vendorId).toLowerCase()}", ` +
     `ATTRS{idProduct}=="${String(entry.productId ?? defaults.productId).toLowerCase()}", ${devpathKey}=="${entry.devpath}"`;
 }
 

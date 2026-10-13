@@ -18,7 +18,7 @@
 const Ajv = require('ajv'),
   addFormats = require('ajv-formats'),
   { MAX_POWER_PORTS } = require('./power'),
-  { parseUdevFilter } = require('./udev-filter');
+  { parseUdevFilter, LIST_KINDS } = require('./udev-filter');
 
 // The config file's key for an HW Client's devices.
 const HW_DEVICES = 'hw-devices',
@@ -43,7 +43,7 @@ const HW_DEVICES = 'hw-devices',
       devpath: { type: 'string', pattern: '^[A-Za-z0-9.:+/-]+$', maxLength: 64 },
       vendorId: { type: 'string', pattern: '^[0-9a-fA-F]{4}$' },
       productId: { type: 'string', pattern: '^[0-9a-fA-F]{4}$' },
-      subsystem: { enum: ['usb', 'tty'] },
+      subsystem: { enum: ['usb', 'tty', 'block'] },
       ...extra
     },
     anyOf: [{ required: ['index'] }, { required: ['path'] }, ...(extra.serial ? [{ required: ['serial'] }] : [])],
@@ -59,6 +59,9 @@ const HW_DEVICES = 'hw-devices',
       // `label`: the tag on its lines in the uart log (default: the device's file name).
       uarts: list(device({ baudRate: { type: 'integer', minimum: 50, maximum: 4000000 }, label: { type: 'string', pattern: '^[A-Za-z0-9._-]{1,32}$' } })),
       usbs: list(device()),
+      // USB mass storage (README §8.6): /dev/thub/dut<N>-storage, the whole
+      // disk. E.g. an ST-Link's drive, which flashes a binary copied onto it.
+      storages: list(device()),
       // USB port power switched with uhubctl (README §8.7): each port by its
       // hub's location and port number, as `uhubctl` lists them
       // ("Current status for hub 1-1.4" … "Port 2").
@@ -116,7 +119,7 @@ function validateClientConfig(type, section){
   }
   // udev filters go into a root-owned udev rule on the Client: matches only.
   const errors = [];
-  for (const list of ['stlinks', 'uarts', 'usbs']){
+  for (const list of Object.keys(LIST_KINDS)){
     (section[list] || []).forEach((entry, i) => {
       if (entry.udev !== undefined){
         try {

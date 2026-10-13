@@ -6,6 +6,7 @@ What changed in each release, newest first. `## Unreleased` collects the changes
 
 ### Added
 
+- **`storages`** in `hw-devices`: USB mass storage drives (`/dev/thub/dut<N>-storage`), e.g. a composite ST-Link's drive. `LIST_KINDS.storages = 'storage'`; an older-style entry's filter matches the whole disk (`SUBSYSTEM=="block", ENV{DEVTYPE}=="disk"`); `subsystem` may be `block`.
 - **udev filters for HW Client devices** (README §8.6). An `hw-devices` ST-Link, UART or DUT USB entry can have a `udev` filter string. The Client gives the matching device the `/dev/thub/dut<index>-<kind>` symlink. `parseUdevFilter` checks and normalizes it: matches only (`KEY=="value"` or `KEY!="value"` on SUBSYSTEM(S), KERNEL(S), DRIVER(S), DEVPATH, TAG(S), ACTION, `ATTR{…}`, `ATTRS{…}`, `ENV{…}`), never an assignment, `RUN`, `PROGRAM`, `IMPORT` or `$` substitution, because the rule is installed as root. `validateClientConfig` applies it, and a `udev` filter needs an `index`. `udevFilterOf(entry, kind)` turns an older entry's `devpath` / `vendorId` / `productId` / `subsystem` into the same filter. `KIND_DEFAULTS` and `LIST_KINDS` moved here from the Client.
 
 ## 2.0.0 — 2026-10-09

@@ -62,3 +62,10 @@ test('hw-devices: a udev filter needs an index, and is checked like parseUdevFil
   assert.match(validateClientConfig('hw', { stlinks: [{ index: 1, udev: 'SUBSYSTEM=="usb", RUN+="/x"' }] }).errors.join(),
     /hw-devices\.stlinks\.0\.udev: .*isn't a udev match/);
 });
+
+test('storages: a mass storage entry\'s filter matches the whole disk, not its partitions', () => {
+  assert.equal(udevFilterOf({ index: 1, devpath: '1.3', productId: '374e' }, 'storage'),
+    'SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="374e", ATTRS{devpath}=="1.3"');
+  assert.deepEqual(validateClientConfig('hw', { storages: [{ index: 1, udev: 'SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ATTRS{devpath}=="1.3"' }] }),
+    { valid: true, errors: [] });
+});
