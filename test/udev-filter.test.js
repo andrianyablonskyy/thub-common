@@ -26,6 +26,14 @@ test('a filter: KEY=="value" / KEY!="value" matches, normalized; commas inside v
   assert.equal(parseUdevFilter('KERNEL=="ttyACM[0-9]*", ENV{ID_SERIAL_SHORT}=="0670FF"'), 'KERNEL=="ttyACM[0-9]*", ENV{ID_SERIAL_SHORT}=="0670FF"');
 });
 
+test('a full rule: access assignments (MODE, GROUP, OWNER, TAG+=) kept, after the matches and before SYMLINK', () => {
+  assert.equal(
+    parseUdevFilter('SYMLINK+="lab/f103-stlink", MODE = "0664", SUBSYSTEM=="usb", GROUP="plugdev", TAG+="uaccess", ATTRS{idProduct}=="3748"'),
+    'SUBSYSTEM=="usb", ATTRS{idProduct}=="3748", MODE="0664", GROUP="plugdev", TAG+="uaccess", SYMLINK+="lab/f103-stlink"'
+  );
+  assert.equal(parseUdevFilter('SUBSYSTEM=="usb", OWNER:="thub", MODE:="660"'), 'SUBSYSTEM=="usb", OWNER:="thub", MODE:="660"');
+});
+
 test('anything that could do more than match is refused: the rule is installed as root', () => {
   for (const [filter, reason]of [
     ['SUBSYSTEM=="usb", RUN+="/bin/sh -c id"', /isn't a udev match/],
@@ -33,7 +41,16 @@ test('anything that could do more than match is refused: the rule is installed a
     ['PROGRAM=="/bin/true"', /PROGRAM can't be used/],
     ['IMPORT{program}=="x"', /IMPORT\{program\} can't be used/],
     ['SUBSYSTEM="usb"', /isn't a udev match/],
-    ['SYMLINK+="evil"', /no match: SYMLINK\+="…" alone would apply to every device/],
+    ['SYMLINK+="evil"', /no match: its assignments alone would apply to every device/],
+    ['MODE="0666"', /no match: its assignments alone/],
+    ['SUBSYSTEM=="usb", MODE="rw"', /MODE="rw" isn't an octal mode/],
+    ['SUBSYSTEM=="usb", MODE+="0664"', /MODE takes ="…" or :="…", not \+=/],
+    ['SUBSYSTEM=="usb", GROUP="plug dev"', /isn't a group name/],
+    ['SUBSYSTEM=="usb", GROUP="$env{G}"', /isn't a udev match/],
+    ['SUBSYSTEM=="usb", GROUP="a", GROUP="b"', /sets GROUP once at most/],
+    ['SUBSYSTEM=="usb", TAG="uaccess"', /TAG takes \+="…"/],
+    ['SUBSYSTEM=="usb", NAME="x"', /isn't a udev match/],
+    ['SUBSYSTEM=="usb", ENV{X}="1"', /isn't a udev match/],
     ['SUBSYSTEM=="tty", SYMLINK="evil"', /isn't a udev match/],
     ['SUBSYSTEM=="tty", SYMLINK+="../sda"', /must be a path inside \/dev/],
     ['SUBSYSTEM=="tty", SYMLINK+="/etc/passwd"', /must be a path inside \/dev/],
@@ -79,7 +96,7 @@ test('storages: a mass storage entry\'s filter matches the whole disk, not its p
 test('an optional SYMLINK+="path" names the device itself, instead of thub/dut<N>-<kind>', () => {
   const { splitUdevFilter, deviceSymlinkOf } = require('../src');
   assert.deepEqual(splitUdevFilter('SYMLINK += "lab/nucleo-f401re-uart" , SUBSYSTEM=="tty", ATTRS{serial}=="A9"'),
-    { match: 'SUBSYSTEM=="tty", ATTRS{serial}=="A9"', symlink: 'lab/nucleo-f401re-uart' });
+    { match: 'SUBSYSTEM=="tty", ATTRS{serial}=="A9"', assign: '', symlink: 'lab/nucleo-f401re-uart' });
   assert.equal(parseUdevFilter('SYMLINK+="ttyNucleo", KERNEL=="ttyACM*"'), 'KERNEL=="ttyACM*", SYMLINK+="ttyNucleo"');
   assert.equal(deviceSymlinkOf({ index: 2, udev: 'KERNEL=="ttyACM*", SYMLINK+="ttyNucleo"' }, 'uart'), 'ttyNucleo');
   assert.equal(deviceSymlinkOf({ index: 2, udev: 'KERNEL=="ttyACM*"' }, 'uart'), 'thub/dut2-uart');
