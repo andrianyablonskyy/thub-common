@@ -24,5 +24,6 @@ module.exports = {
   ...require('./env-list'),
   ...require('./power'),
   ...require('./report-markdown'),
+  ...require('./remote'),
   ApiClient: require('./api-client').ApiClient
 };

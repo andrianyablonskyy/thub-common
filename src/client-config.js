@@ -55,7 +55,12 @@ const HW_DEVICES = 'hw-devices',
     type: 'object',
     additionalProperties: false,
     properties: {
-      stlinks: list(device({ serial: { type: 'string', pattern: '^[A-Za-z0-9]{1,64}$' } })),
+      // `openocdTarget`: the OpenOCD target script (target/<name>.cfg, e.g.
+      // stm32f4x) for remote SWD access to the board on this probe (README §5.6).
+      stlinks: list(device({
+        serial: { type: 'string', pattern: '^[A-Za-z0-9]{1,64}$' },
+        openocdTarget: { type: 'string', pattern: '^[A-Za-z0-9_.-]{1,64}$' }
+      })),
       // `label`: the tag on its lines in the uart log (default: the device's file name).
       uarts: list(device({ baudRate: { type: 'integer', minimum: 50, maximum: 4000000 }, label: { type: 'string', pattern: '^[A-Za-z0-9._-]{1,32}$' } })),
       usbs: list(device()),
