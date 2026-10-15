@@ -23,13 +23,13 @@
 //
 // Binary messages are a channel's bytes: a 2-byte big-endian channel id,
 // then the data. Text messages are JSON control messages, `t` saying which:
-//   Agent → Client   open {ch, kind: 'uart'|'swd', index, target?}, close {ch}
-//   Client → Agent   devices {uarts, probes, serial}, opened {ch}, note {ch, text},
+//   Agent → Client   open {ch, kind: 'uart'|'swd'|'video', index, target?}, close {ch}
+//   Client → Agent   devices {uarts, probes, serial, camera}, opened {ch}, note {ch, text},
 //                    close {ch, reason?}
 //   Coordinator →    status {state: 'waiting'|'ready', client, until} (Agent)
 // The holder may run several sessions at once: each numbers its channels
 // itself, and the Coordinator maps them onto the link's own ids.
-const REMOTE_KINDS = ['uart', 'swd'],
+const REMOTE_KINDS = ['uart', 'swd', 'video'],
   MAX_CHANNEL = 0xffff,
   // Per message: a UART's bytes come in small chunks; GDB's (a flash
   // download) in bigger ones, split to this.
