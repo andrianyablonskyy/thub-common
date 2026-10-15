@@ -2,7 +2,16 @@
 
 What changed in each release, newest first. `## Unreleased` collects the changes since the version on npm; `bin/publish` turns that heading into the version and date it releases.
 
-## 2.2.0 — 2026-10-13
+## 2.2.3 — 2026-10-15
+
+### Added
+
+- **The remote access protocol** (`remote.js`, README §5.6–5.7), shared by the Agent, Coordinator and Client:
+  - **Framing:** binary messages are a channel's bytes (a 2-byte channel id, then the data; `encodeData`, `decodeData`, `dataMessages` splits into 32 KiB chunks), and text messages are JSON control messages (`parseControl`).
+  - **Channel kinds:** `REMOTE_KINDS` is `uart`, `swd` and `video`.
+  - **Validation:** `agentControl` checks what the Agent may ask for: an open by kind and device index, with an OpenOCD target name (`OPENOCD_TARGET_RE`, no paths or options), or a close.
+  - **Helpers and constants:** `remoteUrl(baseUrl, path)` gives the `ws://` / `wss://` URL, `backoffMs(attempt)` the reconnect delays (1 s, 2 s … 30 s, ±20 %), and `REMOTE_CLOSE` the close codes that end a session for good (`4001` reservation ended, `4002` replaced).
+- **`hw-devices.stlinks[].openocdTarget`** in the Client config schema: the OpenOCD target script (`target/<name>.cfg`, e.g. `stm32f4x`) for remote SWD to the board on that probe.
 
 ### Added
 
