@@ -84,9 +84,16 @@ async function fetchLatestVersion(pkg, { registry = defaultRegistry(), timeoutMs
 
 // The npm that belongs to the running node (same prefix as this global
 // install, whether apt, nvm or a custom prefix), falling back to PATH.
-function npmBin(){
-  const candidate = path.join(path.dirname(process.execPath), 'npm');
-  return fs.existsSync(candidate) ? candidate : 'npm';
+function npmBin({ platform = process.platform, execPath = process.execPath, exists = fs.existsSync } = {}){
+  const pathApi = platform === 'win32' ? path.win32 : path,
+    dir = pathApi.dirname(execPath),
+    candidates = platform === 'win32'
+      ? [
+        pathApi.join(dir, 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+        pathApi.join(dir, 'npm.cmd')
+      ]
+      : [pathApi.join(dir, 'npm')];
+  return candidates.find(exists) || 'npm';
 }
 
 // npm's errors for a version that isn't downloadable (yet): right after a
@@ -108,7 +115,7 @@ function sleepSync(ms){
 // else fails at once. Returns npm's exit code. `spawn`/`sleep`: for tests.
 function npmInstallGlobal(pkg, version, {
   env = process.env, stdio = 'inherit', retryDelaysSec = NPM_RETRY_DELAYS_SEC, log = (line) => console.error(line),
-  spawn = spawnSync, sleep = sleepSync
+  spawn = spawnSync, sleep = sleepSync, platform = process.platform, execPath = process.execPath, exists = fs.existsSync
 } = {}){
   if (!Object.values(PACKAGES).includes(pkg)){
     throw new Error(`Refusing to install unknown package ${pkg}`);
@@ -117,9 +124,27 @@ function npmInstallGlobal(pkg, version, {
     throw new Error(`Invalid version "${version}"`);
   }
   const [stdin, stdout] = Array.isArray(stdio) ? stdio : [stdio, stdio],
-    args = ['i', '-g', '--prefer-online', `${pkg}@${version}`];
+    args = ['i', '-g', '--prefer-online', `${pkg}@${version}`],
+    npm = npmBin({ platform, execPath, exists }),
+    command = npm.endsWith('.js') ? execPath : platform === 'win32' && npm.endsWith('.cmd') ? 'powershell.exe' : npm,
+    commandArgs = npm.endsWith('.js')
+      ? [npm, ...args]
+      : platform === 'win32' && npm.endsWith('.cmd')
+        ? [
+          '-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand',
+          Buffer.from([
+            '$request = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:THUB_NPM_INVOCATION)) | ConvertFrom-Json',
+            '$arguments = [string[]]$request.args',
+            '& $request.command @arguments',
+            'exit $LASTEXITCODE'
+          ].join('; '), 'utf16le').toString('base64')
+        ]
+        : args,
+    childEnv = platform === 'win32' && npm.endsWith('.cmd')
+      ? { ...env, THUB_NPM_INVOCATION: Buffer.from(JSON.stringify({ command: npm, args }), 'utf8').toString('base64') }
+      : env;
   for (let attempt = 0; ; attempt++){
-    const result = spawn(npmBin(), args, { env, stdio: [stdin, stdout, 'pipe'], encoding: 'utf8' });
+    const result = spawn(command, commandArgs, { env: childEnv, stdio: [stdin, stdout, 'pipe'], encoding: 'utf8' });
     if (result.error){
       throw result.error;
     }

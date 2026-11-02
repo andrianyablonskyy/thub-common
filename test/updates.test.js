@@ -26,7 +26,7 @@ function fakeNpm(results){
     slept,
     opts: {
       spawn: (bin, args, options) => {
-        calls.push({ args, stdio: options.stdio });
+        calls.push({ bin, args, env: options.env, stdio: options.stdio });
         return results[calls.length - 1];
       },
       sleep: (ms) => slept.push(ms),
@@ -68,4 +68,41 @@ test('unknown packages and bad versions are refused before npm runs', () => {
   assert.throws(() => npmInstallGlobal('left-pad', '1.0.0', npm.opts), /unknown package/);
   assert.throws(() => npmInstallGlobal(PACKAGES.client, '1.0; rm -rf /', npm.opts), /Invalid version/);
   assert.equal(npm.calls.length, 0);
+});
+
+test('Windows global npm updates launch npm-cli.js with the running Node executable', () => {
+  const npm = fakeNpm([OK]),
+    execPath = 'C:\\Program Files\\nodejs\\node.exe',
+    npmCli = 'C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js',
+    exists = (candidate) => candidate === npmCli;
+  assert.equal(npmInstallGlobal(PACKAGES.agent, '1.1.25', {
+    ...npm.opts,
+    platform: 'win32',
+    execPath,
+    exists
+  }), 0);
+  assert.equal(npm.calls[0].bin, execPath);
+  assert.deepEqual(npm.calls[0].args, [npmCli, 'i', '-g', '--prefer-online', `${PACKAGES.agent}@1.1.25`]);
+  assert.deepEqual(npm.calls[0].stdio, ['inherit', 'inherit', 'pipe']);
+});
+
+test('Windows npm.cmd fallback is invoked through a static PowerShell script', () => {
+  const npm = fakeNpm([OK]),
+    npmCmd = 'C:\\Program Files\\nodejs\\npm.cmd',
+    exists = (candidate) => candidate === npmCmd;
+  assert.equal(npmInstallGlobal(PACKAGES.agent, '1.1.25', {
+    ...npm.opts,
+    platform: 'win32',
+    execPath: 'C:\\Program Files\\nodejs\\node.exe',
+    exists
+  }), 0);
+  const call = npm.calls[0],
+    encodedScript = call.args.at(-1);
+  assert.equal(call.bin, 'powershell.exe');
+  assert.equal(call.args.slice(0, -1).join(' '), '-NoLogo -NoProfile -NonInteractive -EncodedCommand');
+  assert.deepEqual(JSON.parse(Buffer.from(call.env.THUB_NPM_INVOCATION, 'base64').toString('utf8')), {
+    command: npmCmd,
+    args: ['i', '-g', '--prefer-online', `${PACKAGES.agent}@1.1.25`]
+  });
+  assert.match(Buffer.from(encodedScript, 'base64').toString('utf16le'), /& \$request\.command @arguments/);
 });
