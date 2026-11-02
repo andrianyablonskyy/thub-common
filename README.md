@@ -55,6 +55,10 @@ await client.streamEvents(`/jobs/${job.jobId}/logs/stream`, {
 
 `request()`/`get()`/`post()` handle JSON bodies, query strings and non-2xx errors (throwing with `.status`/`.body` set); `streamEvents()` reconnects the caller is expected to drive (it just parses one connection's worth of events and resolves when the stream ends) and honors `Last-Event-ID` for resuming after a drop.
 
+### Reserved resource remote channels
+
+The Agent, Coordinator and Client share a WebSocket channel protocol for reserved resources. Besides UART, SWD and video channels, a holder can request a named `service` channel with a Client port. The Client connects that channel only to `127.0.0.1:<port>` on its own host; it never exposes a Client-side listener to the network.
+
 ### Version checks and self-update helpers
 
 `PACKAGES` (the Coordinator/Agent/Client npm names), `fetchLatestVersion(pkg, { registry })` (the `latest` dist-tag from the npm registry), `compareVersions`/`isNewer`/`isValidVersion` (strict `X.Y.Z[-pre]`), `npmBin()` (the npm next to the running node) and `npmInstallGlobal(pkg, version)` (only for the three TestHub packages, only a valid version).

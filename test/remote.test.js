@@ -26,9 +26,11 @@ test('data messages: a 2-byte channel, then the bytes; big ones split', () => {
   assert.deepEqual(parts.map((p) => p.length - 2), [REMOTE_MAX_CHUNK, REMOTE_MAX_CHUNK, 1]);
 });
 
-test('the Agent opens a UART or a probe by index, with an OpenOCD target name â€” nothing else', () => {
+test('the Agent opens device, video, and named loopback service channels only', () => {
   assert.deepEqual(agentControl({ t: 'open', ch: 1, kind: 'swd', index: 2, target: 'stm32f4x', extra: 1 }),
     { t: 'open', ch: 1, kind: 'swd', index: 2, target: 'stm32f4x' });
+  assert.deepEqual(agentControl({ t: 'open', ch: 2, kind: 'service', name: 'Web UI', port: 3000 }),
+    { t: 'open', ch: 2, kind: 'service', name: 'Web UI', port: 3000 });
   assert.deepEqual(agentControl({ t: 'close', ch: 3 }), { t: 'close', ch: 3 });
   for (const bad of [
     { t: 'open', ch: 1, kind: 'swd', index: 1, target: '../../etc/passwd' },
@@ -36,6 +38,10 @@ test('the Agent opens a UART or a probe by index, with an OpenOCD target name â€
     { t: 'open', ch: 1, kind: 'shell', index: 1 },
     { t: 'open', ch: 0, kind: 'uart', index: 1 },
     { t: 'open', ch: 1, kind: 'uart', index: '/dev/sda' },
+    { t: 'open', ch: 1, kind: 'service', name: '../secret', port: 3000 },
+    { t: 'open', ch: 1, kind: 'service', name: 'web', port: 0 },
+    { t: 'open', ch: 1, kind: 'service', name: 'web', port: 65536 },
+    { t: 'open', ch: 1, kind: 'service', name: 'web', port: '3000' },
     { t: 'devices' },
     null
   ]){

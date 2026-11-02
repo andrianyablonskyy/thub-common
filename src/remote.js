@@ -18,18 +18,18 @@
 // (`thub connect`, /api/v1/resources/<client>/remote) and the Client's link
 // (/api/v1/resources/<id>/remote-link, up while the runner is reserved).
 // Each carries any number of channels — one per local TCP connection on the
-// Agent's side: a UART, or a GDB connection to an OpenOCD the Client starts
-// for it.
+// Agent's side: a UART, GDB connection, video stream, or forwarded service.
 //
 // Binary messages are a channel's bytes: a 2-byte big-endian channel id,
 // then the data. Text messages are JSON control messages, `t` saying which:
-//   Agent → Client   open {ch, kind: 'uart'|'swd'|'video', index, target?}, close {ch}
+//   Agent → Client   open {ch, kind: 'uart'|'swd'|'video', index, target?}
+//                    or {ch, kind: 'service', name, port}, close {ch}
 //   Client → Agent   devices {uarts, probes, serial, camera}, opened {ch}, note {ch, text},
 //                    close {ch, reason?}
 //   Coordinator →    status {state: 'waiting'|'ready', client, until} (Agent)
 // The holder may run several sessions at once: each numbers its channels
 // itself, and the Coordinator maps them onto the link's own ids.
-const REMOTE_KINDS = ['uart', 'swd', 'video'],
+const REMOTE_KINDS = ['uart', 'swd', 'video', 'service'],
   MAX_CHANNEL = 0xffff,
   // Per message: a UART's bytes come in small chunks; GDB's (a flash
   // download) in bigger ones, split to this.
@@ -40,7 +40,8 @@ const REMOTE_KINDS = ['uart', 'swd', 'video'],
     REPLACED: 4002
   },
   // OpenOCD target script names (target/<name>.cfg): no paths, no options.
-  OPENOCD_TARGET_RE = /^[A-Za-z0-9_.-]{1,64}$/;
+  OPENOCD_TARGET_RE = /^[A-Za-z0-9_.-]{1,64}$/,
+  SERVICE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$/;
 
 function encodeData(ch, data){
   const buf = Buffer.allocUnsafe(2 + data.length);
@@ -81,7 +82,16 @@ function agentControl(msg){
   if (msg?.t === 'close' && isChannel(msg.ch)){
     return { t: 'close', ch: msg.ch };
   }
-  if (msg?.t === 'open' && isChannel(msg.ch) && REMOTE_KINDS.includes(msg.kind) && Number.isInteger(msg.index) && msg.index >= 1 && msg.index <= 64){
+  if (msg?.t === 'open' && isChannel(msg.ch) && REMOTE_KINDS.includes(msg.kind)){
+    if (msg.kind === 'service'){
+      return typeof msg.name === 'string' && SERVICE_NAME_RE.test(msg.name) &&
+        Number.isInteger(msg.port) && msg.port >= 1 && msg.port <= 65535
+        ? { t: 'open', ch: msg.ch, kind: msg.kind, name: msg.name, port: msg.port }
+        : null;
+    }
+    if (!Number.isInteger(msg.index) || msg.index < 1 || msg.index > 64){
+      return null;
+    }
     if (msg.target !== undefined && (typeof msg.target !== 'string' || !OPENOCD_TARGET_RE.test(msg.target))){
       return null;
     }
@@ -102,6 +112,6 @@ function backoffMs(attempt, maxMs = 30_000){
 }
 
 module.exports = {
-  REMOTE_KINDS, REMOTE_MAX_CHUNK: MAX_CHUNK, REMOTE_CLOSE: CLOSE, OPENOCD_TARGET_RE,
+  REMOTE_KINDS, REMOTE_MAX_CHUNK: MAX_CHUNK, REMOTE_CLOSE: CLOSE, OPENOCD_TARGET_RE, SERVICE_NAME_RE,
   encodeData, decodeData, dataMessages, parseControl, agentControl, remoteUrl, backoffMs
 };
