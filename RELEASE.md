@@ -7,6 +7,11 @@ What changed in each release, newest first. `## Unreleased` collects the changes
 ### Added
 
 - **RTT remote channel support:** the shared protocol validates a target RAM search range and up-channel before the Agent can request RTT capture from a Client.
+- **Named service remote channels:** the protocol validates a service name and TCP port for Agent-requested loopback forwarding on the Client host.
+
+### Changed
+
+- **Windows npm updates:** locate and run the npm JavaScript CLI with the current Node executable when available; invoke the Windows `npm.cmd` fallback through a static PowerShell script with arguments kept separate.
 
 ## 2.2.3 — 2026-10-15
 
