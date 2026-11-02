@@ -2,6 +2,12 @@
 
 What changed in each release, newest first. `## Unreleased` collects the changes since the version on npm; `bin/publish` turns that heading into the version and date it releases.
 
+## Unreleased
+
+### Added
+
+- **RTT remote channel support:** the shared protocol validates a target RAM search range and up-channel before the Agent can request RTT capture from a Client.
+
 ## 2.2.3 — 2026-10-15
 
 ### Added

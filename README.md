@@ -57,7 +57,7 @@ await client.streamEvents(`/jobs/${job.jobId}/logs/stream`, {
 
 ### Reserved resource remote channels
 
-The Agent, Coordinator and Client share a WebSocket channel protocol for reserved resources. Besides UART, SWD and video channels, a holder can request a named `service` channel with a Client port. The Client connects that channel only to `127.0.0.1:<port>` on its own host; it never exposes a Client-side listener to the network.
+The Agent, Coordinator and Client share a WebSocket channel protocol for reserved resources. Besides UART, SWD, RTT and video channels, a holder can request a named `service` channel with a Client port. RTT opens an OpenOCD session over the selected ST-Link, searches a configured target RAM range for the SEGGER control block, and streams one up-channel. The Client connects a `service` channel only to `127.0.0.1:<port>` on its own host; it never exposes a Client-side listener to the network.
 
 ### Version checks and self-update helpers
 

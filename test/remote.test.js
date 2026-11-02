@@ -26,11 +26,13 @@ test('data messages: a 2-byte channel, then the bytes; big ones split', () => {
   assert.deepEqual(parts.map((p) => p.length - 2), [REMOTE_MAX_CHUNK, REMOTE_MAX_CHUNK, 1]);
 });
 
-test('the Agent opens device, video, and named loopback service channels only', () => {
+test('the Agent opens device, RTT, video, and named loopback service channels only', () => {
   assert.deepEqual(agentControl({ t: 'open', ch: 1, kind: 'swd', index: 2, target: 'stm32f4x', extra: 1 }),
     { t: 'open', ch: 1, kind: 'swd', index: 2, target: 'stm32f4x' });
   assert.deepEqual(agentControl({ t: 'open', ch: 2, kind: 'service', name: 'Web UI', port: 3000 }),
     { t: 'open', ch: 2, kind: 'service', name: 'Web UI', port: 3000 });
+  assert.deepEqual(agentControl({ t: 'open', ch: 4, kind: 'rtt', index: 1, address: '0x20000000', size: '0x10000', channel: 0 }),
+    { t: 'open', ch: 4, kind: 'rtt', index: 1, address: '0x20000000', size: '0x10000', channel: 0 });
   assert.deepEqual(agentControl({ t: 'close', ch: 3 }), { t: 'close', ch: 3 });
   for (const bad of [
     { t: 'open', ch: 1, kind: 'swd', index: 1, target: '../../etc/passwd' },
@@ -42,6 +44,9 @@ test('the Agent opens device, video, and named loopback service channels only', 
     { t: 'open', ch: 1, kind: 'service', name: 'web', port: 0 },
     { t: 'open', ch: 1, kind: 'service', name: 'web', port: 65536 },
     { t: 'open', ch: 1, kind: 'service', name: 'web', port: '3000' },
+    { t: 'open', ch: 1, kind: 'rtt', index: 1, address: '0x20000000; shutdown', size: '0x10000', channel: 0 },
+    { t: 'open', ch: 1, kind: 'rtt', index: 1, address: '0x20000000', size: '0', channel: 0 },
+    { t: 'open', ch: 1, kind: 'rtt', index: 1, address: '0x20000000', size: '0x10000', channel: -1 },
     { t: 'devices' },
     null
   ]){

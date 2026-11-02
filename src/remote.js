@@ -22,14 +22,15 @@
 //
 // Binary messages are a channel's bytes: a 2-byte big-endian channel id,
 // then the data. Text messages are JSON control messages, `t` saying which:
-//   Agent → Client   open {ch, kind: 'uart'|'swd'|'video', index, target?}
+//   Agent → Client   open {ch, kind: 'uart'|'swd'|'rtt'|'video', index, target?}
+//                    RTT also has {address, size, channel};
 //                    or {ch, kind: 'service', name, port}, close {ch}
 //   Client → Agent   devices {uarts, probes, serial, camera}, opened {ch}, note {ch, text},
 //                    close {ch, reason?}
 //   Coordinator →    status {state: 'waiting'|'ready', client, until} (Agent)
 // The holder may run several sessions at once: each numbers its channels
 // itself, and the Coordinator maps them onto the link's own ids.
-const REMOTE_KINDS = ['uart', 'swd', 'video', 'service'],
+const REMOTE_KINDS = ['uart', 'swd', 'rtt', 'video', 'service'],
   MAX_CHANNEL = 0xffff,
   // Per message: a UART's bytes come in small chunks; GDB's (a flash
   // download) in bigger ones, split to this.
@@ -41,7 +42,19 @@ const REMOTE_KINDS = ['uart', 'swd', 'video', 'service'],
   },
   // OpenOCD target script names (target/<name>.cfg): no paths, no options.
   OPENOCD_TARGET_RE = /^[A-Za-z0-9_.-]{1,64}$/,
-  SERVICE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$/;
+  SERVICE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$/,
+  RTT_ADDRESS_RE = /^(?:0[xX][0-9a-fA-F]{1,8}|[0-9]{1,10})$/;
+
+function validRttConfig({ address, size, channel } = {}){
+  if (typeof address !== 'string' || !RTT_ADDRESS_RE.test(address) ||
+      typeof size !== 'string' || !RTT_ADDRESS_RE.test(size) ||
+      !Number.isInteger(channel) || channel < 0 || channel > 255){
+    return false;
+  }
+  const start = BigInt(address),
+    length = BigInt(size);
+  return start <= 0xffffffffn && length > 0n && length <= 0xffffffffn && start + length <= 0x1_0000_0000n;
+}
 
 function encodeData(ch, data){
   const buf = Buffer.allocUnsafe(2 + data.length);
@@ -95,6 +108,15 @@ function agentControl(msg){
     if (msg.target !== undefined && (typeof msg.target !== 'string' || !OPENOCD_TARGET_RE.test(msg.target))){
       return null;
     }
+    if (msg.kind === 'rtt'){
+      return validRttConfig(msg)
+        ? {
+          t: 'open', ch: msg.ch, kind: msg.kind, index: msg.index,
+          address: msg.address, size: msg.size, channel: msg.channel,
+          ...(msg.target ? { target: msg.target } : {})
+        }
+        : null;
+    }
     return { t: 'open', ch: msg.ch, kind: msg.kind, index: msg.index, ...(msg.target ? { target: msg.target } : {}) };
   }
   return null;
@@ -113,5 +135,5 @@ function backoffMs(attempt, maxMs = 30_000){
 
 module.exports = {
   REMOTE_KINDS, REMOTE_MAX_CHUNK: MAX_CHUNK, REMOTE_CLOSE: CLOSE, OPENOCD_TARGET_RE, SERVICE_NAME_RE,
-  encodeData, decodeData, dataMessages, parseControl, agentControl, remoteUrl, backoffMs
+  encodeData, decodeData, dataMessages, parseControl, agentControl, remoteUrl, backoffMs, validRttConfig
 };
