@@ -33,6 +33,8 @@ test('the Agent opens device, RTT, video, and named loopback service channels on
     { t: 'open', ch: 2, kind: 'service', name: 'Web UI', port: 3000 });
   assert.deepEqual(agentControl({ t: 'open', ch: 4, kind: 'rtt', index: 1, address: '0x20000000', size: '0x10000', channel: 0 }),
     { t: 'open', ch: 4, kind: 'rtt', index: 1, address: '0x20000000', size: '0x10000', channel: 0 });
+  assert.deepEqual(agentControl({ t: 'open', ch: 5, kind: 'rtt', index: 1, address: '0x20000000', size: '0x10000', channel: 0, target: 'stm32g4x' }),
+    { t: 'open', ch: 5, kind: 'rtt', index: 1, address: '0x20000000', size: '0x10000', channel: 0, target: 'stm32g4x' });
   assert.deepEqual(agentControl({ t: 'close', ch: 3 }), { t: 'close', ch: 3 });
   for (const bad of [
     { t: 'open', ch: 1, kind: 'swd', index: 1, target: '../../etc/passwd' },
